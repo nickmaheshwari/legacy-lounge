@@ -208,3 +208,13 @@ button:disabled { background: #3a4a6b; cursor: not-allowed; }
 .bet-chip.sel { border-color: #f3d27a; box-shadow: 0 0 10px rgba(243,210,122,0.6); }
 
 .roulette-canvas { display: block; margin: 0.25rem auto; }
+.roulette-phase { text-align: center; color: #f3d27a; font-weight: 700; min-height: 1.2em; }
+.bets-list {
+  width: 100%; max-height: 110px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 0.15rem;
+  font-size: 0.85rem; color: #d7c7a8;
+  border: 1px solid #4a371d; border-radius: 8px; padding: 0.4rem;
+}
+.bets-empty { opacity: 0.6; text-align: center; }
+.bets-line.win { color: #7fd6a0; font-weight: 700; }
+.bets-line.lose { color: #ff9b9b; }
