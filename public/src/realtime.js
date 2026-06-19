@@ -4,10 +4,8 @@
 // the free-tier cap. Clients interpolate toward targets locally (see world.js).
 import { supabase } from "./supabase.js";
 
-const ROOM = "room:lobby";
-
-export function joinRoom({ userId, username, color, avatar, spawn, onState }) {
-  const channel = supabase.channel(ROOM, {
+export function joinRoom({ channel: channelName = "room:lounge", userId, username, color, avatar, spawn, onState }) {
+  const channel = supabase.channel(channelName, {
     config: { presence: { key: userId } },
   });
 

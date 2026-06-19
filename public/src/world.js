@@ -1,18 +1,13 @@
-// Canvas 2D lounge. A drawn aristocrat lounge (wood floor, hearth, rug,
-// paintings) with animal avatars. Move with WASD/arrows or click-to-move.
-// The world is a fixed logical 1280x720 scene; a "contain" camera scales it to
-// fill the canvas element crisply (DPR-aware, letterboxed, no stretch).
+// Canvas 2D engine. Room-agnostic: it handles the camera, movement (WASD +
+// click), presence, avatars, and exits/hotspots. The actual scene art and the
+// list of exits/hotspots come from a `room` descriptor (see rooms.js).
 import { joinRoom } from "./realtime.js";
 
-const WORLD_W = 1280;
-const WORLD_H = 720;
-const SPEED = 230;        // px/sec
+export const WORLD_W = 1280;
+export const WORLD_H = 720;
+const SPEED = 230;
 const AVATAR_R = 22;
 const PUBLISH_MS = 120;
-const FLOOR_Y = 250;      // wall/floor boundary
-
-const TABLE = { x: WORLD_W / 2, y: 470, r: 60 };
-const SIT_RANGE = 120;
 
 const KEY_VEC = {
   w: [0, -1], arrowup: [0, -1],
@@ -21,14 +16,14 @@ const KEY_VEC = {
   d: [1, 0], arrowright: [1, 0],
 };
 
-export function startWorld({ canvas, userId, username, avatar = "dog", onEnterChess }) {
+export function startWorld({ canvas, userId, username, avatar = "dog", room, onExit }) {
   const ctx = canvas.getContext("2d");
+  const floorY = room.floorY ?? 250;
   let dpr = 1, cam = { scale: 1, ox: 0, oy: 0 };
 
   function resize() {
     dpr = window.devicePixelRatio || 1;
-    const cw = canvas.clientWidth || 960;
-    const ch = canvas.clientHeight || 540;
+    const cw = canvas.clientWidth || 960, ch = canvas.clientHeight || 540;
     canvas.width = Math.round(cw * dpr);
     canvas.height = Math.round(ch * dpr);
     const scale = Math.min(cw / WORLD_W, ch / WORLD_H);
@@ -40,15 +35,16 @@ export function startWorld({ canvas, userId, username, avatar = "dog", onEnterCh
 
   const me = {
     id: userId, username, avatar,
-    x: WORLD_W / 2 + (Math.abs(hash(userId)) % 300) - 150,
-    y: FLOOR_Y + 160 + (Math.abs(hash(userId + "y")) % 120),
+    x: room.spawn.x + (Math.abs(hash(userId)) % 120) - 60,
+    y: room.spawn.y + (Math.abs(hash(userId + "y")) % 80),
     target: null, moving: false, face: 1,
   };
   const others = new Map();
   const keys = new Set();
 
-  const room = joinRoom({
-    userId, username, avatar, color: null,
+  const room0 = room;
+  const conn = joinRoom({
+    channel: room.channel, userId, username, avatar, color: null,
     spawn: { x: me.x, y: me.y },
     onState(list) {
       const seen = new Set();
@@ -74,20 +70,22 @@ export function startWorld({ canvas, userId, username, avatar = "dog", onEnterCh
 
   function toWorld(evt) {
     const rect = canvas.getBoundingClientRect();
-    const cssX = evt.clientX - rect.left;
-    const cssY = evt.clientY - rect.top;
-    return { x: (cssX - cam.ox) / cam.scale, y: (cssY - cam.oy) / cam.scale };
+    return {
+      x: (evt.clientX - rect.left - cam.ox) / cam.scale,
+      y: (evt.clientY - rect.top - cam.oy) / cam.scale,
+    };
   }
   function onClick(evt) {
     const { x, y } = toWorld(evt);
-    if (dist(x, y, TABLE.x, TABLE.y) < TABLE.r + 12 && dist(me.x, me.y, TABLE.x, TABLE.y) < SIT_RANGE) {
-      onEnterChess();
-      return;
+    for (const ex of room0.exits || []) {
+      if (dist(x, y, ex.x, ex.y) < (ex.r || 46)) { onExit(ex.target); return; }
     }
-    me.target = {
-      x: clamp(x, AVATAR_R, WORLD_W - AVATAR_R),
-      y: clamp(y, FLOOR_Y + 10, WORLD_H - AVATAR_R),
-    };
+    for (const h of room0.hotspots || []) {
+      if (dist(x, y, h.x, h.y) < (h.r || 60) + 12 && dist(me.x, me.y, h.x, h.y) < (h.range || 120)) {
+        h.onEnter(); return;
+      }
+    }
+    me.target = { x: clamp(x, AVATAR_R, WORLD_W - AVATAR_R), y: clamp(y, floorY + 10, WORLD_H - AVATAR_R) };
   }
   canvas.addEventListener("click", onClick);
 
@@ -105,13 +103,12 @@ export function startWorld({ canvas, userId, username, avatar = "dog", onEnterCh
   }
 
   function step(dt) {
-    let moving = false;
-    let kx = 0, ky = 0;
+    let moving = false, kx = 0, ky = 0;
     for (const k of keys) { const v = KEY_VEC[k]; if (v) { kx += v[0]; ky += v[1]; } }
     if (kx || ky) {
       const len = Math.hypot(kx, ky) || 1;
       me.x = clamp(me.x + (kx / len) * SPEED * dt, AVATAR_R, WORLD_W - AVATAR_R);
-      me.y = clamp(me.y + (ky / len) * SPEED * dt, FLOOR_Y + 10, WORLD_H - AVATAR_R);
+      me.y = clamp(me.y + (ky / len) * SPEED * dt, floorY + 10, WORLD_H - AVATAR_R);
       if (kx) me.face = kx > 0 ? 1 : -1;
       moving = true;
     } else if (me.target) {
@@ -134,7 +131,7 @@ export function startWorld({ canvas, userId, username, avatar = "dog", onEnterCh
   function publishMaybe(dt, moving) {
     sincePublish += dt * 1000;
     if ((moving && sincePublish >= PUBLISH_MS) || (!moving && wasMoving)) {
-      room.move(Math.round(me.x), Math.round(me.y));
+      conn.move(Math.round(me.x), Math.round(me.y));
       sincePublish = 0;
     }
     wasMoving = moving;
@@ -144,168 +141,38 @@ export function startWorld({ canvas, userId, username, avatar = "dog", onEnterCh
   function draw() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // letterbox backdrop
     ctx.fillStyle = "#0a0705";
     ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     ctx.translate(cam.ox, cam.oy);
     ctx.scale(cam.scale, cam.scale);
 
-    drawScene();
+    room0.drawScene(ctx, t);
+    for (const ex of room0.exits || []) drawExit(ex);
     const all = [...others.values(), me].sort((a, b) => a.y - b.y);
     for (const p of all) drawAvatar(p);
     drawHud();
   }
 
-  function drawScene() {
-    drawWall();
-    drawFloor();
-    drawRug();
-    drawHearth();
-    drawPaintings();
-    drawSconce(170, 150); drawSconce(WORLD_W - 170, 150);
-    drawTable();
-  }
-
-  function drawWall() {
-    const g = ctx.createLinearGradient(0, 0, 0, FLOOR_Y);
-    g.addColorStop(0, "#3a1f2b");
-    g.addColorStop(1, "#52303d");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, WORLD_W, FLOOR_Y);
-    // damask stripes
-    ctx.fillStyle = "rgba(255,210,150,0.04)";
-    for (let x = 0; x < WORLD_W; x += 64) ctx.fillRect(x, 0, 32, FLOOR_Y);
-    // crown molding + baseboard
-    ctx.fillStyle = "#caa45a";
-    ctx.fillRect(0, FLOOR_Y - 12, WORLD_W, 12);
-    ctx.fillStyle = "#8a6a2f";
-    ctx.fillRect(0, FLOOR_Y - 4, WORLD_W, 4);
-  }
-
-  function drawFloor() {
-    const g = ctx.createLinearGradient(0, FLOOR_Y, 0, WORLD_H);
-    g.addColorStop(0, "#6b4426");
-    g.addColorStop(1, "#3f2715");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, FLOOR_Y, WORLD_W, WORLD_H - FLOOR_Y);
-    // plank seams in perspective
-    ctx.strokeStyle = "rgba(0,0,0,0.18)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i <= 14; i++) {
-      const x = (WORLD_W / 14) * i;
-      const cxp = WORLD_W / 2;
-      ctx.beginPath();
-      ctx.moveTo(x, WORLD_H);
-      ctx.lineTo(cxp + (x - cxp) * 0.5, FLOOR_Y);
-      ctx.stroke();
-    }
-    for (let i = 1; i <= 5; i++) {
-      const y = FLOOR_Y + (WORLD_H - FLOOR_Y) * (i / 5.2);
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_W, y); ctx.stroke();
-    }
-  }
-
-  function drawRug() {
-    const cx = WORLD_W / 2, cy = 540, rx = 360, ry = 150;
+  function drawExit(ex) {
+    const pulse = 0.6 + Math.sin(t * 4) * 0.2;
     ctx.save();
-    ctx.translate(cx, cy);
-    ellipseFill(0, 0, rx, ry, "#5a2230");
-    ellipseStroke(0, 0, rx, ry, "#caa45a", 6);
-    ellipseStroke(0, 0, rx * 0.78, ry * 0.78, "#caa45a", 3);
-    ellipseFill(0, 0, rx * 0.2, ry * 0.2, "#caa45a");
+    ctx.font = "700 17px Georgia, serif";
+    const label = ex.label || "Exit";
+    const tw = ctx.measureText(label).width;
+    const arrow = ex.dir === "right" ? "→" : "←";
+    const w = tw + 60, h = 44, x = ex.x - w / 2, y = ex.y - h / 2;
+    ctx.shadowColor = `rgba(243,210,122,${pulse})`;
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "rgba(28,18,12,0.85)";
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 10); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#caa45a"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 10); ctx.stroke();
+    ctx.fillStyle = "#f3d27a"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const txt = ex.dir === "right" ? `${label}  ${arrow}` : `${arrow}  ${label}`;
+    ctx.fillText(txt, ex.x, ex.y);
     ctx.restore();
-  }
-
-  function drawHearth() {
-    const x = WORLD_W / 2, w = 240, h = 200, top = FLOOR_Y - h;
-    // stone surround
-    ctx.fillStyle = "#6e6a63";
-    roundRectPath(x - w / 2, top, w, h, 8); ctx.fill();
-    ctx.fillStyle = "#56524c";
-    ctx.fillRect(x - w / 2 - 16, top - 18, w + 32, 22); // mantel
-    // firebox
-    const fbW = w - 80, fbH = h - 60, fx = x - fbW / 2, fy = top + 36;
-    ctx.fillStyle = "#140d0a";
-    roundRectPath(fx, fy, fbW, fbH, 6); ctx.fill();
-    // animated fire
-    const flick = 0.75 + Math.sin(t * 9) * 0.12 + Math.sin(t * 17) * 0.06;
-    const glow = ctx.createRadialGradient(x, fy + fbH, 6, x, fy + fbH, 130 * flick);
-    glow.addColorStop(0, "rgba(255,180,60,0.9)");
-    glow.addColorStop(0.5, "rgba(255,110,30,0.45)");
-    glow.addColorStop(1, "rgba(255,90,20,0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(fx - 40, fy - 40, fbW + 80, fbH + 80);
-    // logs + flames
-    ctx.fillStyle = "#3a2414";
-    ctx.fillRect(fx + 14, fy + fbH - 16, fbW - 28, 12);
-    for (let i = 0; i < 5; i++) {
-      const lx = fx + 18 + i * ((fbW - 36) / 4);
-      const fh = (28 + Math.sin(t * 8 + i) * 10) * flick;
-      flame(lx, fy + fbH - 10, 14, fh);
-    }
-    // warm cast on floor
-    const cast = ctx.createRadialGradient(x, FLOOR_Y + 10, 10, x, FLOOR_Y + 10, 300);
-    cast.addColorStop(0, "rgba(255,150,50,0.18)");
-    cast.addColorStop(1, "rgba(255,150,50,0)");
-    ctx.fillStyle = cast;
-    ctx.fillRect(0, FLOOR_Y, WORLD_W, 260);
-  }
-
-  function flame(x, baseY, w, h) {
-    const g = ctx.createLinearGradient(0, baseY - h, 0, baseY);
-    g.addColorStop(0, "#fff2b0");
-    g.addColorStop(0.4, "#ffd166");
-    g.addColorStop(1, "#ff6b2c");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.moveTo(x, baseY);
-    ctx.quadraticCurveTo(x - w, baseY - h * 0.5, x, baseY - h);
-    ctx.quadraticCurveTo(x + w, baseY - h * 0.5, x, baseY);
-    ctx.fill();
-  }
-
-  function drawPaintings() {
-    portrait(330, 70, 120, 130);
-    portrait(WORLD_W - 330, 70, 120, 130);
-  }
-  function portrait(cx, y, w, h) {
-    ctx.fillStyle = "#caa45a"; roundRectPath(cx - w / 2 - 8, y - 8, w + 16, h + 16, 6); ctx.fill();
-    ctx.fillStyle = "#26323f"; ctx.fillRect(cx - w / 2, y, w, h);
-    ctx.fillStyle = "#3b4b5e"; ctx.beginPath(); ctx.arc(cx, y + h * 0.42, w * 0.22, 0, Math.PI * 2); ctx.fill();
-    ctx.fillRect(cx - w * 0.26, y + h * 0.6, w * 0.52, h * 0.4);
-  }
-
-  function drawSconce(x, y) {
-    ctx.fillStyle = "#caa45a";
-    ctx.fillRect(x - 4, y, 8, 40);
-    const fl = 0.8 + Math.sin(t * 11 + x) * 0.2;
-    const g = ctx.createRadialGradient(x, y, 2, x, y, 60 * fl);
-    g.addColorStop(0, "rgba(255,200,90,0.8)");
-    g.addColorStop(1, "rgba(255,200,90,0)");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 60 * fl, 0, Math.PI * 2); ctx.fill();
-    flame(x, y, 8, 18 * fl);
-  }
-
-  function drawTable() {
-    // shadow
-    ellipseFill(TABLE.x, TABLE.y + 30, TABLE.r + 14, 22, "rgba(0,0,0,0.35)");
-    // pedestal
-    ctx.fillStyle = "#3a2414";
-    ctx.fillRect(TABLE.x - 10, TABLE.y, 20, 34);
-    // round tabletop
-    ellipseFill(TABLE.x, TABLE.y, TABLE.r, TABLE.r * 0.62, "#5b3a1e");
-    ellipseStroke(TABLE.x, TABLE.y, TABLE.r, TABLE.r * 0.62, "#caa45a", 3);
-    // chessboard inlay
-    const s = 64, ox = TABLE.x - s / 2, oy = TABLE.y - s / 2 + 2;
-    for (let r = 0; r < 8; r++)
-      for (let c = 0; c < 8; c++) {
-        ctx.fillStyle = (r + c) % 2 ? "#2c3a52" : "#e6e0cf";
-        ctx.fillRect(ox + (c * s) / 8, oy + (r * s) / 8, s / 8, s / 8);
-      }
-    ctx.fillStyle = "rgba(255,245,220,0.92)";
-    ctx.font = "600 15px Georgia, serif";
-    ctx.textAlign = "center";
-    ctx.fillText("♟ Chess — walk up & click", TABLE.x, TABLE.y + TABLE.r * 0.62 + 22);
+    ctx.textBaseline = "alphabetic";
   }
 
   function drawHud() {
@@ -313,12 +180,27 @@ export function startWorld({ canvas, userId, username, avatar = "dog", onEnterCh
     ctx.font = "14px Georgia, serif";
     const w = 210, h = 16 + names.length * 20 + 8;
     ctx.fillStyle = "rgba(20,12,8,0.6)";
-    roundRectPath(16, 16, w, h, 8); ctx.fill();
-    ctx.strokeStyle = "rgba(202,164,90,0.5)"; ctx.lineWidth = 1; roundRectPath(16, 16, w, h, 8); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(16, 16, w, h, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(202,164,90,0.5)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(16, 16, w, h, 8); ctx.stroke();
     ctx.fillStyle = "#e9c87a"; ctx.textAlign = "left";
-    ctx.fillText(`♛ ${names.length} in the lounge`, 28, 38);
+    ctx.fillText(`${room0.title || "Room"} — ${names.length}`, 28, 38);
     ctx.fillStyle = "#d7c7a8";
     names.forEach((n, i) => ctx.fillText("• " + n, 28, 60 + i * 20));
+  }
+
+  function drawAvatar(p) {
+    const bob = (p.moving ? Math.sin(t * 12 + (p.x + p.y) * 0.05) * 2.5 : 0);
+    const x = p.x, y = p.y + bob;
+    ctx.fillStyle = "rgba(0,0,0,0.32)";
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + AVATAR_R * 0.9, AVATAR_R * 0.95, AVATAR_R * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+    drawAnimal(ctx, p.avatar || "dog", x, y, AVATAR_R, p.face || 1, t, p.moving);
+    ctx.font = "600 13px Georgia, serif"; ctx.textAlign = "center";
+    const tw = ctx.measureText(p.username || "?").width + 14;
+    ctx.fillStyle = "rgba(20,12,8,0.66)";
+    ctx.beginPath(); ctx.roundRect(x - tw / 2, y - AVATAR_R - 30, tw, 18, 6); ctx.fill();
+    ctx.fillStyle = "#f3e8cf";
+    ctx.fillText(p.username || "?", x, y - AVATAR_R - 17);
   }
 
   raf = requestAnimationFrame(frame);
@@ -330,30 +212,9 @@ export function startWorld({ canvas, userId, username, avatar = "dog", onEnterCh
       canvas.removeEventListener("click", onClick);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
-      room.leave();
+      conn.leave();
     },
   };
-
-  // ---------- avatars ----------
-  function drawAvatar(p) {
-    const bob = (p.moving ? Math.sin(t * 12 + (p.x + p.y) * 0.05) * 2.5 : 0);
-    const x = p.x, y = p.y + bob;
-    // shadow
-    ellipseFill(p.x, p.y + AVATAR_R * 0.9, AVATAR_R * 0.95, AVATAR_R * 0.34, "rgba(0,0,0,0.32)");
-    drawAnimal(ctx, p.avatar || "dog", x, y, AVATAR_R, p.face || 1, t, p.moving);
-    // nameplate
-    ctx.font = "600 13px Georgia, serif";
-    ctx.textAlign = "center";
-    const tw = ctx.measureText(p.username || "?").width + 14;
-    ctx.fillStyle = "rgba(20,12,8,0.66)";
-    roundRectPath(x - tw / 2, y - AVATAR_R - 30, tw, 18, 6); ctx.fill();
-    ctx.fillStyle = "#f3e8cf";
-    ctx.fillText(p.username || "?", x, y - AVATAR_R - 17);
-  }
-
-  function ellipseFill(x, y, rx, ry, fill) { ctx.fillStyle = fill; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); }
-  function ellipseStroke(x, y, rx, ry, s, w) { ctx.strokeStyle = s; ctx.lineWidth = w; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.stroke(); }
-  function roundRectPath(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 }
 
 // ---------- animal sprites ----------
@@ -369,19 +230,16 @@ function drawAnimal(ctx, type, x, y, r, face, t, moving) {
   ctx.translate(x, y);
   ctx.scale(face, 1);
 
-  // body
   ctx.fillStyle = c.body;
   ctx.beginPath(); ctx.ellipse(0, r * 0.7, r * 0.78, r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = c.belly;
   ctx.beginPath(); ctx.ellipse(0, r * 0.85, r * 0.42, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
 
-  // legs (little shuffle when moving)
   const sw = moving ? Math.sin(t * 12) * 3 : 0;
   ctx.fillStyle = c.dark;
   ctx.fillRect(-r * 0.5 + sw, r * 1.3, r * 0.3, r * 0.4);
   ctx.fillRect(r * 0.2 - sw, r * 1.3, r * 0.3, r * 0.4);
 
-  // tail
   ctx.strokeStyle = c.dark; ctx.lineWidth = r * 0.28; ctx.lineCap = "round";
   ctx.beginPath();
   if (type === "cat") { ctx.moveTo(-r * 0.6, r * 0.7); ctx.quadraticCurveTo(-r * 1.4, r * 0.2, -r * 1.1, -r * 0.5); }
@@ -389,7 +247,6 @@ function drawAnimal(ctx, type, x, y, r, face, t, moving) {
   else { ctx.moveTo(-r * 0.6, r * 0.9); ctx.lineTo(-r * 0.85, r * 0.95); }
   ctx.stroke();
 
-  // ears (behind head)
   ctx.fillStyle = c.dark;
   if (type === "cat") {
     tri(ctx, -r * 0.55, -r * 0.45, -r * 0.15, -r * 1.25, -r * 0.05, -r * 0.55);
@@ -402,16 +259,13 @@ function drawAnimal(ctx, type, x, y, r, face, t, moving) {
     ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.7, r * 0.2, 0, Math.PI * 2); ctx.fill();
   }
 
-  // head
   ctx.fillStyle = c.body;
   ctx.beginPath(); ctx.arc(0, -r * 0.15, r * 0.82, 0, Math.PI * 2); ctx.fill();
 
-  // muzzle
   ctx.fillStyle = c.belly;
   if (type === "capybara") { ctx.beginPath(); ctx.roundRect(-r * 0.5, r * 0.05, r, r * 0.6, 6); ctx.fill(); }
   else { ctx.beginPath(); ctx.ellipse(0, r * 0.18, r * 0.42, r * 0.32, 0, 0, Math.PI * 2); ctx.fill(); }
 
-  // eyes
   ctx.fillStyle = "#fff";
   ctx.beginPath(); ctx.arc(-r * 0.3, -r * 0.25, r * 0.17, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(r * 0.3, -r * 0.25, r * 0.17, 0, Math.PI * 2); ctx.fill();
@@ -419,20 +273,16 @@ function drawAnimal(ctx, type, x, y, r, face, t, moving) {
   ctx.beginPath(); ctx.arc(-r * 0.27, -r * 0.25, r * 0.09, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(r * 0.33, -r * 0.25, r * 0.09, 0, Math.PI * 2); ctx.fill();
 
-  // nose
   ctx.fillStyle = "#241812";
   ctx.beginPath(); ctx.arc(0, r * 0.05, r * 0.12, 0, Math.PI * 2); ctx.fill();
 
-  // species extras
   if (type === "cat") {
     ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1.2;
-    for (const dy of [0.12, 0.26]) { seg(ctx, r * 0.15, r * 0.05 + r * dy, r * 0.95, r * 0.0 + r * dy); seg(ctx, -r * 0.15, r * 0.05 + r * dy, -r * 0.95, r * 0.0 + r * dy); }
+    for (const dy of [0.12, 0.26]) { seg(ctx, r * 0.15, r * 0.05 + r * dy, r * 0.95, r * dy); seg(ctx, -r * 0.15, r * 0.05 + r * dy, -r * 0.95, r * dy); }
   } else if (type === "dog") {
-    ctx.fillStyle = "#e0697a"; // tongue
-    if (moving) { ctx.beginPath(); ctx.roundRect(-r * 0.08, r * 0.16, r * 0.16, r * 0.3, 4); ctx.fill(); }
+    if (moving) { ctx.fillStyle = "#e0697a"; ctx.beginPath(); ctx.roundRect(-r * 0.08, r * 0.16, r * 0.16, r * 0.3, 4); ctx.fill(); }
   } else {
-    ctx.fillStyle = c.acc; // capybara: nostrils block
-    ctx.fillRect(-r * 0.16, r * 0.32, r * 0.32, r * 0.12);
+    ctx.fillStyle = c.acc; ctx.fillRect(-r * 0.16, r * 0.32, r * 0.32, r * 0.12);
   }
   ctx.restore();
 }

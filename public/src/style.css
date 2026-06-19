@@ -173,3 +173,45 @@ button:disabled { background: #3a4a6b; cursor: not-allowed; }
 .sq.sel { box-shadow: inset 0 0 0 3px #ffd166; }
 .sq.target { box-shadow: inset 0 0 0 3px rgba(61, 220, 132, 0.8); }
 .chess-controls { display: flex; gap: 0.5rem; }
+
+/* ---------- casino (blackjack / roulette) ---------- */
+.casino-wrap {
+  display: flex; flex-direction: column; gap: 0.7rem; align-items: center;
+  font-family: Georgia, "Times New Roman", serif; min-width: 340px;
+}
+.casino-title { font-size: 1.5rem; color: #f3d27a; }
+.casino-cash { color: #7fd6a0; font-weight: 700; }
+.casino-msg { min-height: 1.3em; color: #d7c7a8; text-align: center; }
+.casino-msg.win { color: #7fd6a0; font-weight: 700; }
+.casino-msg.lose { color: #ff9b9b; }
+.casino-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+.bet-wrap { display: flex; align-items: center; gap: 0.5rem; color: #d7c7a8; }
+.bet-wrap input[type="range"] { accent-color: #caa45a; }
+.bet-wrap input[type="number"] { width: 80px; background: #120b0f; border: 1px solid #5a4422; color: #f3e8cf; padding: 0.3rem; border-radius: 6px; }
+
+.bj-row { display: flex; align-items: center; gap: 0.6rem; }
+.bj-side { width: 56px; color: #9fb3d8; }
+.cards { display: flex; gap: 0.4rem; min-height: 76px; }
+.card {
+  width: 52px; height: 72px; border-radius: 7px; background: #fdfaf3; color: #1c1c1c;
+  display: flex; flex-direction: column; justify-content: space-between; align-items: center;
+  padding: 4px 6px; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.card.red { color: #c0392b; }
+.card.back { background: repeating-linear-gradient(45deg, #7a2330, #7a2330 6px, #5a1820 6px, #5a1820 12px); }
+
+.bet-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; width: 100%; }
+.bet-chip { border: 2px solid transparent; }
+.bet-chip.red { background: #c0392b; }
+.bet-chip.black { background: #2c2c2c; }
+.bet-chip.even, .bet-chip.odd, .bet-chip.low, .bet-chip.high { background: #356; }
+.bet-chip.sel { border-color: #f3d27a; box-shadow: 0 0 10px rgba(243,210,122,0.6); }
+
+.roulette-result {
+  width: 70px; height: 70px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 1.8rem; font-weight: 800; color: #fff; background: #444;
+  border: 3px solid #caa45a;
+}
+.roulette-result.red { background: #c0392b; }
+.roulette-result.black { background: #1c1c1c; }
+.roulette-result.green { background: #0c7a3a; }

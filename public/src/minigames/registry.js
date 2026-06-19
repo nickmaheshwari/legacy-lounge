@@ -2,6 +2,8 @@
 // fetches a game's code when launched. Add new games here (see new-minigame skill).
 export const MINIGAMES = {
   chess: () => import("./chess/index.js"),
+  blackjack: () => import("./blackjack/index.js"),
+  roulette: () => import("./roulette/index.js"),
 };
 
 export async function loadMinigame(id) {

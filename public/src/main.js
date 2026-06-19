@@ -1,8 +1,10 @@
-// Entry point. Auth screen → game screen (world + chat). Walking to the chess
-// table and clicking opens the chess overlay.
+// Entry point. Auth → game (rooms + chat). Players walk between rooms via exit
+// arrows; tables open game overlays. Cash lives on the profile and is shown in
+// the header, refreshed whenever a server-authoritative game pays out.
 import { signUp, logIn, logOut, currentUser } from "./auth.js";
 import { supabase } from "./supabase.js";
 import { startWorld } from "./world.js";
+import { buildRooms } from "./rooms.js";
 import { initChat } from "./chat.js";
 import { loadMinigame } from "./minigames/registry.js";
 
@@ -13,6 +15,7 @@ const usernameInput = document.getElementById("username");
 const passwordInput = document.getElementById("password");
 const msg = document.getElementById("auth-msg");
 const whoami = document.getElementById("whoami");
+const cashEl = document.getElementById("cash");
 const canvas = document.getElementById("world-canvas");
 const chatPanel = document.getElementById("chat-panel");
 const overlay = document.getElementById("overlay");
@@ -28,82 +31,99 @@ function showError(label, e) {
 window.addEventListener("error", (e) => showError("Error", e));
 window.addEventListener("unhandledrejection", (e) => showError("Unhandled", e.reason));
 
-let session = null; // { world, chat, game }
-
 function show(screen) {
   authScreen.hidden = screen !== "auth";
   gameScreen.hidden = screen !== "game";
 }
 
+let player = null; // { user, username, avatar }
+let cash = 0;
+let rooms = null;
+let currentRoom = null;
+let world = null;
+let chat = null;
+let activeGame = null;
+
+function setCash(c) { cash = c; cashEl.textContent = `$${c}`; }
+
 async function getProfile(user) {
   const { data } = await supabase
     .from("profiles")
-    .select("username, avatar")
+    .select("username, avatar, cash")
     .eq("id", user.id)
     .maybeSingle();
   return {
-    // fall back to the synthetic-email local part if profile not yet readable
     username: data?.username || user.email?.split("@")[0] || "player",
     avatar: data?.avatar || "dog",
+    cash: data?.cash ?? 500,
   };
 }
 
-let activeGame = null; // { unmount }
-
-async function openChess(ctx) {
-  const mod = await loadMinigame("chess");
+// ---------- game overlays ----------
+async function openGame(id) {
+  const mod = await loadMinigame(id);
   overlay.hidden = false;
   overlayContent.innerHTML = "";
   mod.mount(overlayContent, {
     supabase,
-    user: ctx.user,
-    username: ctx.username,
-    close: closeChess,
+    user: player.user,
+    username: player.username,
+    startCash: cash,
+    onCash: setCash,
+    close: closeGame,
   });
   activeGame = mod;
 }
-
-function closeChess() {
+function closeGame() {
   if (activeGame) { activeGame.unmount(); activeGame = null; }
   overlay.hidden = true;
   overlayContent.innerHTML = "";
 }
 
+// ---------- rooms ----------
+function enterRoom(roomId) {
+  closeGame();
+  if (world) { world.stop(); world = null; }
+  currentRoom = rooms[roomId];
+  world = startWorld({
+    canvas,
+    userId: player.user.id,
+    username: player.username,
+    avatar: player.avatar,
+    room: currentRoom,
+    onExit: enterRoom,
+  });
+}
+
 async function enterGame(user) {
-  const { username, avatar } = await getProfile(user);
-  whoami.textContent = username;
+  const profile = await getProfile(user);
+  player = { user, username: profile.username, avatar: profile.avatar };
+  setCash(profile.cash);
+  whoami.textContent = profile.username;
   show("game");
 
-  let world, chat;
-  try {
-    world = startWorld({
-      canvas,
-      userId: user.id,
-      username,
-      avatar,
-      onEnterChess: () => openChess({ user, username }),
-    });
-  } catch (e) { showError("World", e); }
-  try {
-    chat = initChat({ root: chatPanel, userId: user.id, username });
-  } catch (e) { showError("Chat", e); }
-  session = { world, chat };
+  rooms = buildRooms({
+    openChess: () => openGame("chess"),
+    openBlackjack: () => openGame("blackjack"),
+    openRoulette: () => openGame("roulette"),
+  });
+
+  try { enterRoom("lounge"); } catch (e) { showError("World", e); }
+  try { chat = initChat({ root: chatPanel, userId: user.id, username: profile.username }); }
+  catch (e) { showError("Chat", e); }
 }
 
 function leaveGame() {
-  closeChess();
-  if (session) {
-    session.world?.stop();
-    session.chat?.stop();
-    session = null;
-  }
+  closeGame();
+  if (world) { world.stop(); world = null; }
+  if (chat) { chat.stop(); chat = null; }
   chatPanel.innerHTML = "";
 }
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   msg.textContent = "";
-  const action = e.submitter?.value; // "login" | "signup"
+  const action = e.submitter?.value;
   try {
     const avatar = form.querySelector('input[name="avatar"]:checked')?.value || "dog";
     const user = action === "signup"
