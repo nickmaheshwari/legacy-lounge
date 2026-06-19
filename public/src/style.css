@@ -1,5 +1,8 @@
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
+/* ID selectors below set display:grid/flex, which beats the UA [hidden] rule.
+   Force hidden to win so screen toggling works. */
+[hidden] { display: none !important; }
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
