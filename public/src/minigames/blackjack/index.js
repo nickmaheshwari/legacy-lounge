@@ -100,9 +100,6 @@ export function mount(container, ctx) {
     if (round.status === "betting" && Date.now() >= new Date(round.betting_ends_at).getTime() && dealSent !== round.id) {
       dealSent = round.id;
       supabase.rpc("bj_round_deal", { p_round: round.id }).then(({ data }) => { if (data) onRound(data); });
-    } else if (round.status === "playing" && hands.length && hands.every((h) => h.stand) && settleSent !== round.id) {
-      settleSent = round.id;
-      supabase.rpc("bj_round_settle", { p_round: round.id }).then(({ data }) => { if (data) onRound(data); });
     } else if (round.status === "done" && !nextScheduled) {
       nextScheduled = setTimeout(async () => { const { data } = await supabase.rpc("bj_round_current"); if (data) onRound(data); }, 6000);
     }
@@ -132,7 +129,8 @@ export function mount(container, ctx) {
     // players
     playersEl.innerHTML = "";
     for (const h of hands) {
-      const tile = div("bj-player" + (h.user_id === uid ? " me" : "") + (h.result ? " r-" + h.result : ""));
+      const isTurn = playing && r.turn_user === h.user_id;
+      const tile = div("bj-player" + (h.user_id === uid ? " me" : "") + (isTurn ? " turn" : "") + (h.result ? " r-" + h.result : ""));
       const av = document.createElement("canvas"); av.width = 46; av.height = 46; av.className = "bj-pav";
       drawAnimal(av.getContext("2d"), h.avatar || "dog", 23, 22, 12, 1, 0, false);
       tile.append(av, div("bj-pname", h.user_id === uid ? "You" : h.username));
@@ -147,13 +145,21 @@ export function mount(container, ctx) {
 
     // controls
     const mine = myHand();
+    const myTurn = playing && mine && !mine.stand && r.turn_user === uid;
     betWrap.style.display = betting && !mine ? "flex" : "none";
-    const canAct = playing && mine && !mine.stand;
-    hitBtn.style.display = standBtn.style.display = canAct ? "inline-block" : "none";
+    hitBtn.style.display = standBtn.style.display = myTurn ? "inline-block" : "none";
+
+    const turnName = () => { const th = hands.find((h) => h.user_id === r.turn_user); return th ? (th.user_id === uid ? "you" : th.username) : "…"; };
 
     // messages / dealer chatter
     if (betting) { msg.textContent = mine ? `You're in for $${mine.bet}.` : "Place your bet to join."; msg.className = "casino-msg"; say(mine ? "You're in. Good luck." : "Step right up — place your bet."); }
-    else if (playing) { msg.textContent = mine ? (mine.stand ? "Standing — waiting for the table…" : `Your total: ${total(mine.cards)}`) : "Spectating this round."; msg.className = "casino-msg"; say("Hit or stand?"); }
+    else if (playing) {
+      if (myTurn) { msg.textContent = `Your turn — total ${total(mine.cards)}.`; say("Your move — hit or stand?"); }
+      else if (mine && mine.stand) { msg.textContent = `Standing on ${total(mine.cards)} — waiting…`; say(`${turnName()} is up.`); }
+      else if (mine) { msg.textContent = `Waiting for ${turnName()}…`; say(`${turnName()} is up.`); }
+      else { msg.textContent = `Spectating — ${turnName()} to act.`; say("Place a bet next round to play."); }
+      msg.className = "casino-msg";
+    }
     else if (done) {
       if (mine && mine.result) { const r2 = mine.result; msg.textContent = `${({ blackjack: "Blackjack!", win: "You win!", push: "Push.", lose: "You lose." })[r2]} Dealer: ${dtot}`; msg.className = "casino-msg " + (r2 === "lose" ? "lose" : r2 === "push" ? "" : "win"); }
       else { msg.textContent = `Dealer: ${dtot ?? "-"}`; msg.className = "casino-msg"; }

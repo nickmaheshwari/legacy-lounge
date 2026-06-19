@@ -292,6 +292,7 @@ button:disabled { background: #3a4a6b; cursor: not-allowed; }
   border-radius: 10px; padding: 0.4rem 0.5rem; min-width: 84px;
 }
 .bj-player.me { border-color: #f3d27a; box-shadow: 0 0 8px rgba(243,210,122,0.4); }
+.bj-player.turn { border-color: #7fd6a0; box-shadow: 0 0 12px rgba(127,214,160,0.6); }
 .bj-player.r-win, .bj-player.r-blackjack { background: rgba(127,214,160,0.18); }
 .bj-player.r-lose { opacity: 0.6; }
 .bj-pname { font-size: 0.72rem; color: #f3e8cf; font-weight: 600; }
