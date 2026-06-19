@@ -316,13 +316,18 @@ export function mount(container, ctx) {
 
   async function playCpu() {
     if (!game || game.status !== "waiting" || !amWhite()) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("chess_games")
       .update({ black_id: userId, black_name: CPU_NAME, status: "active" })
       .eq("id", game.id)
       .select()
-      .single();
-    if (data) { game = data; applyGame(); }
+      .maybeSingle();
+    if (error) { status.append(div("chess-turn", "Couldn't start CPU: " + error.message)); return; }
+    // Use the returned row if present; otherwise apply the change locally so the
+    // game becomes playable immediately regardless of the update's echo.
+    game = data || { ...game, black_id: userId, black_name: CPU_NAME, status: "active" };
+    vsCpu = true;
+    applyGame();
   }
 
   async function refresh() {
