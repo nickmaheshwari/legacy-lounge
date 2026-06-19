@@ -23,14 +23,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Generate the client config from repo variables so the anon key isn't
-      # hand-committed. These are public-safe (RLS protects data).
-      - name: Write config.js
-        run: |
-          cat > public/src/config.js <<EOF
-          export const SUPABASE_URL = "${{ vars.SUPABASE_URL }}";
-          export const SUPABASE_ANON_KEY = "${{ vars.SUPABASE_ANON_KEY }}";
-          EOF
+      # Generate the client config from GitHub secrets via the same script used
+      # locally. Values are public-safe (RLS protects data); kept out of git.
+      - name: Generate config.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: bash scripts/gen-config.sh
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
