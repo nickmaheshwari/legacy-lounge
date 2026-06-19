@@ -110,19 +110,41 @@ export function startWorld({ canvas, userId, username, avatar = "dog", room, onE
     raf = requestAnimationFrame(frame);
   }
 
+  function blocked(x, y) {
+    for (const o of room0.obstacles || []) {
+      const dx = (x - o.x) / (o.rx + AVATAR_R * 0.7), dy = (y - o.y) / (o.ry + AVATAR_R * 0.7);
+      if (dx * dx + dy * dy < 1) return true;
+    }
+    return false;
+  }
+  // Move from (ox,oy) toward (nx,ny), sliding along table edges instead of passing through.
+  function resolve(ox, oy, nx, ny) {
+    if (!blocked(nx, ny)) return { x: nx, y: ny };
+    if (!blocked(nx, oy)) return { x: nx, y: oy };
+    if (!blocked(ox, ny)) return { x: ox, y: ny };
+    return { x: ox, y: oy };
+  }
+
   function step(dt) {
     let moving = false, kx = 0, ky = 0;
     for (const k of keys) { const v = KEY_VEC[k]; if (v) { kx += v[0]; ky += v[1]; } }
     if (kx || ky) {
       const len = Math.hypot(kx, ky) || 1;
-      me.x = clamp(me.x + (kx / len) * SPEED * dt, AVATAR_R, WORLD_W - AVATAR_R);
-      me.y = clamp(me.y + (ky / len) * SPEED * dt, floorY + 10, WORLD_H - AVATAR_R);
+      const nx = clamp(me.x + (kx / len) * SPEED * dt, AVATAR_R, WORLD_W - AVATAR_R);
+      const ny = clamp(me.y + (ky / len) * SPEED * dt, floorY + 10, WORLD_H - AVATAR_R);
+      const r = resolve(me.x, me.y, nx, ny);
+      me.x = r.x; me.y = r.y;
       if (kx) me.face = kx > 0 ? 1 : -1;
       moving = true;
     } else if (me.target) {
       const dx = me.target.x - me.x, dy = me.target.y - me.y, d = Math.hypot(dx, dy);
-      if (d < 1) { me.x = me.target.x; me.y = me.target.y; me.target = null; }
-      else { const m = Math.min(d, SPEED * dt); me.x += (dx / d) * m; me.y += (dy / d) * m; if (Math.abs(dx) > 0.5) me.face = dx > 0 ? 1 : -1; moving = true; }
+      if (d < 1) { me.target = null; }
+      else {
+        const m = Math.min(d, SPEED * dt);
+        const r = resolve(me.x, me.y, me.x + (dx / d) * m, me.y + (dy / d) * m);
+        if (r.x === me.x && r.y === me.y) me.target = null; // stuck against a table; stop
+        else { me.x = r.x; me.y = r.y; if (Math.abs(dx) > 0.5) me.face = dx > 0 ? 1 : -1; moving = true; }
+      }
     }
     me.moving = moving;
     for (const p of others.values()) {
@@ -277,20 +299,30 @@ function drawAnimal(ctx, type, x, y, r, face, t, moving) {
   else oval(0, r * 0.82, r * 0.42, r * 0.5, c.belly);
   if (type === "penguin") { oval(-r * 0.72, r * 0.6, r * 0.18, r * 0.44, c.dark); oval(r * 0.72, r * 0.6, r * 0.18, r * 0.44, c.dark); }
 
+  // panda: black shoulders/arms (more black coloring)
+  if (type === "panda") { oval(-r * 0.62, r * 0.5, r * 0.26, r * 0.46, c.dark); oval(r * 0.62, r * 0.5, r * 0.26, r * 0.46, c.dark); }
+
   // ---- ears (behind head) ----
   ctx.fillStyle = c.dark;
-  if (type === "cat" || type === "tiger") {
-    tri(ctx, -r * 0.62, -r * 0.5, -r * 0.2, -r * 1.32, -r * 0.02, -r * 0.62);
-    tri(ctx, r * 0.62, -r * 0.5, r * 0.2, -r * 1.32, r * 0.02, -r * 0.62);
-    ctx.fillStyle = "rgba(255,150,165,0.85)";
-    tri(ctx, -r * 0.5, -r * 0.6, -r * 0.24, -r * 1.12, -r * 0.12, -r * 0.66);
-    tri(ctx, r * 0.5, -r * 0.6, r * 0.24, -r * 1.12, r * 0.12, -r * 0.66);
+  if (type === "cat") {
+    // sharp triangular ears + pink inner
+    tri(ctx, -r * 0.64, -r * 0.46, -r * 0.16, -r * 1.42, -r * 0.02, -r * 0.6);
+    tri(ctx, r * 0.64, -r * 0.46, r * 0.16, -r * 1.42, r * 0.02, -r * 0.6);
+    ctx.fillStyle = "rgba(255,150,165,0.9)";
+    tri(ctx, -r * 0.5, -r * 0.58, -r * 0.21, -r * 1.18, -r * 0.12, -r * 0.64);
+    tri(ctx, r * 0.5, -r * 0.58, r * 0.21, -r * 1.18, r * 0.12, -r * 0.64);
+  } else if (type === "tiger") {
+    // rounded ears with dark inner
+    oval(-r * 0.6, -r * 0.86, r * 0.27, r * 0.3, c.body);
+    oval(r * 0.6, -r * 0.86, r * 0.27, r * 0.3, c.body);
+    oval(-r * 0.6, -r * 0.9, r * 0.14, r * 0.16, c.dark);
+    oval(r * 0.6, -r * 0.9, r * 0.14, r * 0.16, c.dark);
   } else if (type === "dog") {
     oval(-r * 0.82, -r * 0.25, r * 0.32, r * 0.6, c.dark);
     oval(r * 0.82, -r * 0.25, r * 0.32, r * 0.6, c.dark);
   } else if (type === "panda") {
-    oval(-r * 0.62, -r * 0.92, r * 0.32, r * 0.32, c.dark);
-    oval(r * 0.62, -r * 0.92, r * 0.32, r * 0.32, c.dark);
+    oval(-r * 0.68, -r * 1.0, r * 0.42, r * 0.42, c.dark);   // bigger ears
+    oval(r * 0.68, -r * 1.0, r * 0.42, r * 0.42, c.dark);
   } else if (type === "capybara") {
     oval(-r * 0.55, -r * 0.95, r * 0.2, r * 0.18, c.dark);
     oval(r * 0.55, -r * 0.95, r * 0.2, r * 0.18, c.dark);
@@ -341,12 +373,21 @@ function drawAnimal(ctx, type, x, y, r, face, t, moving) {
   } else if (type === "dog" && moving) {
     oval(0, r * 0.18, r * 0.1, r * 0.16, "#e0697a"); // tongue
   } else if (type === "tiger") {
-    ctx.strokeStyle = c.dark; ctx.lineWidth = r * 0.09; ctx.lineCap = "round";
-    seg(ctx, -r * 0.6, -r * 0.6, -r * 0.42, -r * 0.28);
-    seg(ctx, 0, -r * 0.95, 0, -r * 0.66);
-    seg(ctx, r * 0.6, -r * 0.6, r * 0.42, -r * 0.28);
-    seg(ctx, -r * 0.5, r * 0.5, -r * 0.4, r * 0.95);
-    seg(ctx, r * 0.5, r * 0.5, r * 0.4, r * 0.95);
+    ctx.strokeStyle = c.dark; ctx.lineCap = "round";
+    const stripe = (x1, y1, cxp, cyp, x2, y2, w) => { ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cxp, cyp, x2, y2); ctx.stroke(); };
+    // forehead
+    stripe(-r * 0.12, -r * 1.18, 0, -r * 1.0, r * 0.12, -r * 1.18, r * 0.09);
+    stripe(-r * 0.34, -r * 1.08, -r * 0.28, -r * 0.85, -r * 0.16, -r * 0.72, r * 0.08);
+    stripe(r * 0.34, -r * 1.08, r * 0.28, -r * 0.85, r * 0.16, -r * 0.72, r * 0.08);
+    // cheeks
+    stripe(-r * 0.7, -r * 0.5, -r * 0.5, -r * 0.4, -r * 0.34, -r * 0.34, r * 0.08);
+    stripe(r * 0.7, -r * 0.5, r * 0.5, -r * 0.4, r * 0.34, -r * 0.34, r * 0.08);
+    stripe(-r * 0.78, -r * 0.18, -r * 0.55, -r * 0.16, -r * 0.4, -r * 0.12, r * 0.07);
+    stripe(r * 0.78, -r * 0.18, r * 0.55, -r * 0.16, r * 0.4, -r * 0.12, r * 0.07);
+    // back/body
+    stripe(-r * 0.6, r * 0.3, -r * 0.5, r * 0.55, -r * 0.42, r * 0.95, r * 0.1);
+    stripe(0, r * 0.25, r * 0.02, r * 0.6, 0, r * 1.05, r * 0.1);
+    stripe(r * 0.6, r * 0.3, r * 0.5, r * 0.55, r * 0.42, r * 0.95, r * 0.1);
   }
   ctx.restore();
 }

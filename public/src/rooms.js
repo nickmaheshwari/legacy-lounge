@@ -17,8 +17,12 @@ export function buildRooms({ openChess, openBlackjack, openRoulette }) {
       { x: 230, y: 470, dir: "left", label: "High Roller's Room", target: "highroller", r: 150 },
     ],
     hotspots: [
-      { x: 500, y: 480, r: 60, range: 130, onEnter: () => openChess("lounge-1") },
-      { x: 820, y: 480, r: 60, range: 130, onEnter: () => openChess("lounge-2") },
+      { x: 500, y: 480, r: 60, range: 140, onEnter: () => openChess("lounge-1") },
+      { x: 820, y: 480, r: 60, range: 140, onEnter: () => openChess("lounge-2") },
+    ],
+    obstacles: [
+      { x: 500, y: 482, rx: 72, ry: 40 },
+      { x: 820, y: 482, rx: 72, ry: 40 },
     ],
   };
 
@@ -33,8 +37,12 @@ export function buildRooms({ openChess, openBlackjack, openRoulette }) {
       { x: WORLD_W - 170, y: 470, dir: "right", label: "Lounge", target: "lounge", r: 120 },
     ],
     hotspots: [
-      { x: 430, y: 480, r: 80, range: 150, onEnter: openBlackjack },
-      { x: 880, y: 470, r: 75, range: 150, onEnter: openRoulette },
+      { x: 430, y: 470, r: 110, range: 175, onEnter: openBlackjack },
+      { x: 880, y: 462, r: 95, range: 165, onEnter: openRoulette },
+    ],
+    obstacles: [
+      { x: 430, y: 478, rx: 128, ry: 52 },
+      { x: 880, y: 470, rx: 100, ry: 50 },
     ],
   };
 
@@ -55,23 +63,25 @@ function drawLounge(ctx, t) {
   drawWoodFloor(ctx, "#6b4426", "#3f2715");
 
   // rug
-  rug(ctx, WORLD_W / 2, 540, 360, 150, "#5a2230");
+  rug(ctx, WORLD_W / 2, 545, 320, 130, "#5a2230");
 
   // hearth
   hearth(ctx, WORLD_W / 2, t);
 
-  // moonlit windows + portraits + sconces
-  windowPane(ctx, 215, 60, 120, 150);
-  windowPane(ctx, WORLD_W - 215, 60, 120, 150);
+  // windows (only one has the moon) + portraits + sconces
+  windowPane(ctx, 215, 60, 120, 150, true);
+  windowPane(ctx, WORLD_W - 215, 60, 120, 150, false);
   portrait(ctx, 410, 70, 110, 120);
   portrait(ctx, WORLD_W - 410, 70, 110, 120);
   sconce(ctx, 120, 150, t); sconce(ctx, WORLD_W - 120, 150, t);
 
-  // two chess tables
+  // two chess tables, each with chairs
   for (const [x, name] of [[500, "Chess I"], [820, "Chess II"]]) {
-    roundTable(ctx, x, 480, 60, "#5b3a1e");
-    inlaidBoard(ctx, x, 480, 64);
-    label(ctx, `♟ ${name} — walk up & click`, x, 480 + 60 * 0.62 + 22);
+    chair(ctx, x, 432, 0.85);                          // far chair (behind table)
+    furnitureTable(ctx, x, 482, 66, 40, "#5b3a1e");
+    inlaidBoard(ctx, x, 470, 58);
+    chair(ctx, x, 548, 1.0);                           // near chair (in front)
+    label(ctx, `♟ ${name} — walk up & click`, x, 524);
   }
 }
 
@@ -86,8 +96,8 @@ function drawHighRoller(ctx, t) {
   ctx.fillStyle = "#caa45a"; ctx.fillRect(0, FLOOR_Y - 12, WORLD_W, 12);
   ctx.fillStyle = "#7a5a20"; ctx.fillRect(0, FLOOR_Y - 4, WORLD_W, 4);
 
-  // dark patterned floor
-  drawWoodFloor(ctx, "#2a1418", "#160a0c");
+  // polished casino marble floor
+  drawCasinoFloor(ctx);
 
   // chandeliers over the tables + neon sign
   chandelier(ctx, 430, 120, t);
@@ -95,19 +105,22 @@ function drawHighRoller(ctx, t) {
   neonSign(ctx, "HIGH ROLLER'S ROOM", WORLD_W / 2, 70, t);
 
   // hanging lamps glow over tables
-  spotlight(ctx, 430, 480, 260);
-  spotlight(ctx, 880, 470, 240);
+  spotlight(ctx, 430, 470, 260);
+  spotlight(ctx, 880, 462, 240);
 
-  // central rug
-  rug(ctx, WORLD_W / 2, 560, 420, 150, "#3a0d12");
+  // ---- blackjack table (left) with chairs ----
+  for (const dx of [-78, 0, 78]) chair(ctx, 430 + dx, 552, 0.9); // players' chairs in front
+  furnitureTable(ctx, 430, 478, 130, 52, "#0c5a34");
+  ctx.fillStyle = "rgba(255,245,220,0.85)"; ctx.font = "600 15px Georgia, serif"; ctx.textAlign = "center";
+  ctx.fillText("BLACKJACK PAYS 3 TO 2", 430, 470);
+  chip(ctx, 380, 486, "#c0392b"); chip(ctx, 470, 488, "#caa45a");
+  label(ctx, "🂡 Blackjack — walk up & click", 430, 556);
 
-  // blackjack table (left)
-  blackjackTable(ctx, 430, 480);
-  label(ctx, "🂡 Blackjack — walk up & click", 430, 560);
-
-  // roulette wheel (right)
-  rouletteWheel(ctx, 880, 470, t);
-  label(ctx, "Roulette — walk up & click", 880, 560);
+  // ---- roulette table (right) with chairs ----
+  for (const dx of [-66, 66]) chair(ctx, 880 + dx, 548, 0.9);
+  furnitureTable(ctx, 880, 470, 104, 52, "#0c5a34");
+  rouletteWheel(ctx, 880, 458, t);
+  label(ctx, "Roulette — walk up & click", 880, 552);
 }
 
 // ============================ PRIMITIVES ============================
@@ -221,11 +234,53 @@ function rouletteWheel(ctx, x, y, t) {
   ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x + Math.cos(ba) * 58, y + Math.sin(ba) * 58, 5, 0, Math.PI * 2); ctx.fill();
 }
 
-function roundTable(ctx, x, y, r, fill) {
-  ellipseFill(ctx, x, y + 30, r + 14, 22, "rgba(0,0,0,0.35)");
-  ctx.fillStyle = "#3a2414"; ctx.fillRect(x - 10, y, 20, 34);
-  ellipseFill(ctx, x, y, r, r * 0.62, fill);
-  ellipseStroke(ctx, x, y, r, r * 0.62, "#caa45a", 3);
+// A proper table: shadow, legs, apron, oval top with rim + sheen. (rx,ry) = top.
+function furnitureTable(ctx, x, y, rx, ry, top) {
+  ellipseFill(ctx, x, y + ry * 0.8, rx * 1.02, ry * 0.5, "rgba(0,0,0,0.32)"); // floor shadow
+  ctx.fillStyle = "#2a1810";                                                   // front legs
+  ctx.fillRect(x - rx * 0.72, y, 10, ry * 1.5);
+  ctx.fillRect(x + rx * 0.72 - 10, y, 10, ry * 1.5);
+  ctx.fillStyle = shade(top, -42);                                             // apron under the top
+  rr(ctx, x - rx, y - ry * 0.15, rx * 2, ry * 0.7, 6); ctx.fill();
+  ellipseFill(ctx, x, y - ry * 0.15, rx, ry, top);                            // top
+  ellipseStroke(ctx, x, y - ry * 0.15, rx, ry, "#caa45a", 3);
+  ellipseFill(ctx, x - rx * 0.32, y - ry * 0.5, rx * 0.42, ry * 0.28, "rgba(255,255,255,0.07)"); // sheen
+}
+
+function chair(ctx, x, y, s) {
+  ctx.fillStyle = "rgba(0,0,0,0.28)"; ctx.beginPath(); ctx.ellipse(x, y + 14 * s, 16 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#6b4426"; rr(ctx, x - 13 * s, y - 30 * s, 26 * s, 28 * s, 6); ctx.fill();  // backrest
+  ctx.fillStyle = "#7a4f2a"; rr(ctx, x - 9 * s, y - 26 * s, 18 * s, 20 * s, 4); ctx.fill();
+  ctx.fillStyle = "#3a2414"; ctx.fillRect(x - 12 * s, y, 4 * s, 16 * s); ctx.fillRect(x + 8 * s, y, 4 * s, 16 * s); // legs
+  ellipseFill(ctx, x, y, 15 * s, 8 * s, "#5b3a1e");                                          // seat
+  ellipseStroke(ctx, x, y, 15 * s, 8 * s, "#caa45a", 2);
+}
+
+function drawCasinoFloor(ctx) {
+  const g = ctx.createLinearGradient(0, FLOOR_Y, 0, WORLD_H);
+  g.addColorStop(0, "#2a121a"); g.addColorStop(1, "#120709");
+  ctx.fillStyle = g; ctx.fillRect(0, FLOOR_Y, WORLD_W, WORLD_H - FLOOR_Y);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, FLOOR_Y, WORLD_W, WORLD_H - FLOOR_Y); ctx.clip();
+  const s = 76;
+  ctx.strokeStyle = "rgba(202,164,90,0.13)"; ctx.lineWidth = 1;
+  for (let row = 0, y = FLOOR_Y; y < WORLD_H + s; y += s / 2, row++) {
+    for (let x = (row % 2 ? s / 2 : 0); x < WORLD_W + s; x += s) {
+      ctx.beginPath();
+      ctx.moveTo(x, y - s / 2); ctx.lineTo(x + s / 2, y); ctx.lineTo(x, y + s / 2); ctx.lineTo(x - s / 2, y); ctx.closePath();
+      ctx.fillStyle = ((x / s + row) % 2 === 0) ? "rgba(0,0,0,0.28)" : "rgba(140,24,36,0.12)";
+      ctx.fill(); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.min(255, (n >> 16) + amt));
+  const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + amt));
+  const b = Math.max(0, Math.min(255, (n & 255) + amt));
+  return `rgb(${r},${g},${b})`;
 }
 
 function inlaidBoard(ctx, x, y, s) {
@@ -246,7 +301,7 @@ function label(ctx, text, x, y) {
   ctx.fillText(text, x, y);
 }
 
-function windowPane(ctx, cx, top, w, h) {
+function windowPane(ctx, cx, top, w, h, moon = true) {
   const x = cx - w / 2;
   // arched night-sky glass
   ctx.save();
@@ -257,14 +312,15 @@ function windowPane(ctx, cx, top, w, h) {
   const sky = ctx.createLinearGradient(0, top, 0, top + h);
   sky.addColorStop(0, "#0b1233"); sky.addColorStop(1, "#1b2a55");
   ctx.fillStyle = sky; ctx.fillRect(x, top, w, h);
-  // moon + glow
-  ctx.fillStyle = "rgba(245,240,210,0.25)"; ctx.beginPath(); ctx.arc(cx + w * 0.22, top + h * 0.32, w * 0.28, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#f5f0d2"; ctx.beginPath(); ctx.arc(cx + w * 0.22, top + h * 0.32, w * 0.16, 0, Math.PI * 2); ctx.fill();
-  // stars
-  ctx.fillStyle = "rgba(255,255,255,0.8)";
-  for (const [sx, sy] of [[0.2, 0.25], [0.4, 0.5], [0.7, 0.6], [0.3, 0.7], [0.6, 0.3]]) {
-    ctx.fillRect(x + w * sx, top + h * sy, 2, 2);
+  if (moon) {
+    ctx.fillStyle = "rgba(245,240,210,0.25)"; ctx.beginPath(); ctx.arc(cx + w * 0.22, top + h * 0.32, w * 0.28, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#f5f0d2"; ctx.beginPath(); ctx.arc(cx + w * 0.22, top + h * 0.32, w * 0.16, 0, Math.PI * 2); ctx.fill();
   }
+  // stars (a few extra when there's no moon)
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  const stars = moon ? [[0.2, 0.25], [0.4, 0.5], [0.7, 0.6], [0.3, 0.7], [0.6, 0.3]]
+    : [[0.2, 0.25], [0.4, 0.5], [0.7, 0.4], [0.3, 0.7], [0.6, 0.3], [0.8, 0.7], [0.5, 0.18], [0.15, 0.55]];
+  for (const [sx, sy] of stars) ctx.fillRect(x + w * sx, top + h * sy, 2, 2);
   ctx.restore();
   // gold frame + mullions
   ctx.strokeStyle = "#caa45a"; ctx.lineWidth = 5;
