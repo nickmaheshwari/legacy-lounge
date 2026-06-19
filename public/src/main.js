@@ -25,14 +25,17 @@ function show(screen) {
   gameScreen.hidden = screen !== "game";
 }
 
-async function getUsername(user) {
+async function getProfile(user) {
   const { data } = await supabase
     .from("profiles")
-    .select("username")
+    .select("username, avatar")
     .eq("id", user.id)
     .maybeSingle();
-  // fall back to the synthetic-email local part if profile not yet readable
-  return data?.username || user.email?.split("@")[0] || "player";
+  return {
+    // fall back to the synthetic-email local part if profile not yet readable
+    username: data?.username || user.email?.split("@")[0] || "player",
+    avatar: data?.avatar || "dog",
+  };
 }
 
 let activeGame = null; // { unmount }
@@ -57,7 +60,7 @@ function closeChess() {
 }
 
 async function enterGame(user) {
-  const username = await getUsername(user);
+  const { username, avatar } = await getProfile(user);
   whoami.textContent = username;
   show("game");
 
@@ -65,6 +68,7 @@ async function enterGame(user) {
     canvas,
     userId: user.id,
     username,
+    avatar,
     onEnterChess: () => openChess({ user, username }),
   });
   const chat = initChat({ root: chatPanel, userId: user.id, username });
@@ -86,8 +90,9 @@ form.addEventListener("submit", async (e) => {
   msg.textContent = "";
   const action = e.submitter?.value; // "login" | "signup"
   try {
+    const avatar = form.querySelector('input[name="avatar"]:checked')?.value || "dog";
     const user = action === "signup"
-      ? await signUp(usernameInput.value, passwordInput.value)
+      ? await signUp(usernameInput.value, passwordInput.value, avatar)
       : await logIn(usernameInput.value, passwordInput.value);
     await enterGame(user);
   } catch (err) {

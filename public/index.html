@@ -12,6 +12,12 @@
     <form id="auth-form">
       <input id="username" name="username" placeholder="Username" autocomplete="username" required />
       <input id="password" name="password" type="password" placeholder="Password" autocomplete="current-password" required />
+      <fieldset id="avatar-pick">
+        <legend>Pick your animal (sign up)</legend>
+        <label><input type="radio" name="avatar" value="dog" checked /><span class="ava-emoji">🐶</span> Dog</label>
+        <label><input type="radio" name="avatar" value="cat" /><span class="ava-emoji">🐱</span> Cat</label>
+        <label><input type="radio" name="avatar" value="capybara" /><span class="ava-emoji">🦫</span> Capybara</label>
+      </fieldset>
       <div class="buttons">
         <button type="submit" name="action" value="login">Log in</button>
         <button type="submit" name="action" value="signup">Sign up</button>

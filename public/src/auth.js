@@ -17,6 +17,8 @@ function usernameToEmail(username) {
   return `${username.trim().toLowerCase()}@${EMAIL_DOMAIN}`;
 }
 
+export const AVATARS = ["dog", "cat", "capybara"];
+
 export function validateUsername(username) {
   const u = (username || "").trim();
   if (u.length < 3 || u.length > 20) return "Username must be 3–20 characters.";
@@ -24,10 +26,11 @@ export function validateUsername(username) {
   return null;
 }
 
-export async function signUp(username, password) {
+export async function signUp(username, password, avatar = "dog") {
   const err = validateUsername(username);
   if (err) throw new Error(err);
   if (!password || password.length < 6) throw new Error("Password must be at least 6 characters.");
+  if (!AVATARS.includes(avatar)) avatar = "dog";
 
   const { data, error } = await supabase.auth.signUp({
     email: usernameToEmail(username),
@@ -42,7 +45,7 @@ export async function signUp(username, password) {
   // Create the profile row. UNIQUE(username) is the real guard against dups.
   const { error: pErr } = await supabase
     .from("profiles")
-    .insert({ id: data.user.id, username: username.trim() });
+    .insert({ id: data.user.id, username: username.trim(), avatar });
   if (pErr) {
     if (/duplicate key/i.test(pErr.message)) throw new Error("That username is taken.");
     throw pErr;

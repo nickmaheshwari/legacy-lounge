@@ -6,13 +6,13 @@ import { supabase } from "./supabase.js";
 
 const ROOM = "room:lobby";
 
-export function joinRoom({ userId, username, color, spawn, onState }) {
+export function joinRoom({ userId, username, color, avatar, spawn, onState }) {
   const channel = supabase.channel(ROOM, {
     config: { presence: { key: userId } },
   });
 
   // self state we publish via presence
-  let self = { id: userId, username, color, x: spawn.x, y: spawn.y };
+  let self = { id: userId, username, color, avatar, x: spawn.x, y: spawn.y };
 
   channel.on("presence", { event: "sync" }, () => {
     const state = channel.presenceState();
