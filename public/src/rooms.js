@@ -17,7 +17,8 @@ export function buildRooms({ openChess, openBlackjack, openRoulette }) {
       { x: 230, y: 470, dir: "left", label: "High Roller's Room", target: "highroller", r: 150 },
     ],
     hotspots: [
-      { x: WORLD_W / 2, y: 470, r: 60, range: 130, onEnter: openChess },
+      { x: 500, y: 480, r: 60, range: 130, onEnter: () => openChess("lounge-1") },
+      { x: 820, y: 480, r: 60, range: 130, onEnter: () => openChess("lounge-2") },
     ],
   };
 
@@ -64,10 +65,12 @@ function drawLounge(ctx, t) {
   portrait(ctx, WORLD_W - 330, 70, 120, 130);
   sconce(ctx, 170, 150, t); sconce(ctx, WORLD_W - 170, 150, t);
 
-  // chess table
-  roundTable(ctx, WORLD_W / 2, 470, 60, "#5b3a1e");
-  inlaidBoard(ctx, WORLD_W / 2, 470, 64);
-  label(ctx, "♟ Chess — walk up & click", WORLD_W / 2, 470 + 60 * 0.62 + 22);
+  // two chess tables
+  for (const [x, name] of [[500, "Chess I"], [820, "Chess II"]]) {
+    roundTable(ctx, x, 480, 60, "#5b3a1e");
+    inlaidBoard(ctx, x, 480, 64);
+    label(ctx, `♟ ${name} — walk up & click`, x, 480 + 60 * 0.62 + 22);
+  }
 }
 
 // ====================== HIGH ROLLER'S ROOM ======================

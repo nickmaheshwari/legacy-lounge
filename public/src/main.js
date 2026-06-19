@@ -84,7 +84,7 @@ async function getProfile(user) {
 }
 
 // ---------- game overlays ----------
-async function openGame(id) {
+async function openGame(id, opts = {}) {
   const mod = await loadMinigame(id);
   overlay.hidden = false;
   overlayContent.innerHTML = "";
@@ -95,6 +95,7 @@ async function openGame(id) {
     startCash: cash,
     onCash: setCash,
     close: closeGame,
+    ...opts,
   });
   activeGame = mod;
 }
@@ -127,7 +128,7 @@ async function enterGame(user) {
   show("game");
 
   rooms = buildRooms({
-    openChess: () => openGame("chess"),
+    openChess: (tableId) => openGame("chess", { table: tableId }),
     openBlackjack: () => openGame("blackjack"),
     openRoulette: () => openGame("roulette"),
   });

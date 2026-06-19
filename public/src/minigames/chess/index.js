@@ -19,6 +19,7 @@ let teardown = null;
 export function mount(container, ctx) {
   const { user, username } = ctx;
   const userId = user.id;
+  const tableId = ctx.table || "lounge-1";
 
   const chess = new Chess();
   let game = null;        // chess_games row
@@ -37,7 +38,7 @@ export function mount(container, ctx) {
   controls.className = "chess-controls";
   const resignBtn = button("Resign", onResign);
   const newBtn = button("New game", onNewGame);
-  const leaveBtn = button("Leave", () => ctx.close?.());
+  const leaveBtn = button("Leave", onLeave);
   controls.append(resignBtn, newBtn, leaveBtn);
   wrap.append(status, boardEl, controls);
   container.append(wrap);
@@ -62,6 +63,7 @@ export function mount(container, ctx) {
     const { data } = await supabase
       .from("chess_games")
       .select("*")
+      .eq("table_id", tableId)
       .in("status", ["waiting", "active"])
       .order("created_at", { ascending: false })
       .limit(1)
@@ -71,7 +73,7 @@ export function mount(container, ctx) {
     else {
       const { data: created } = await supabase
         .from("chess_games")
-        .insert({})
+        .insert({ table_id: tableId })
         .select()
         .single();
       game = created;
@@ -231,11 +233,51 @@ export function mount(container, ctx) {
 
   async function onNewGame() {
     if (gameSub) supabase.removeChannel(gameSub);
-    const { data } = await supabase.from("chess_games").insert({}).select().single();
+    const { data } = await supabase.from("chess_games").insert({ table_id: tableId }).select().single();
     game = data;
     await seatSelf();
     applyGame();
     subscribe();
+  }
+
+  // ----- leaving the table -----
+  function onLeave() {
+    // Only warn if leaving abandons a live match you're seated in.
+    if (amPlayer() && (game.status === "active" || game.status === "waiting")) {
+      showConfirm("Are you sure? Leaving the table forfeits the match.", async () => {
+        await forfeit();
+        ctx.close?.();
+      });
+    } else {
+      ctx.close?.();
+    }
+  }
+
+  async function forfeit() {
+    if (!game) return;
+    if (game.status === "active") {
+      const result = amWhite() ? "black_won" : "white_won";
+      await supabase.from("chess_games").update({ status: result }).eq("id", game.id);
+    } else if (game.status === "waiting") {
+      // no opponent yet — free the table
+      await supabase.from("chess_games").update({ status: "aborted" }).eq("id", game.id);
+    }
+  }
+
+  function showConfirm(message, onYes) {
+    const back = document.createElement("div");
+    back.className = "chess-confirm";
+    const card = document.createElement("div");
+    card.className = "chess-confirm-card";
+    card.append(div("chess-confirm-msg", message));
+    const row = document.createElement("div");
+    row.className = "chess-controls";
+    const yes = button("Leave & forfeit", async () => { back.remove(); await onYes(); });
+    const no = button("Stay", () => back.remove());
+    row.append(yes, no);
+    card.append(row);
+    back.append(card);
+    wrap.append(back);
   }
 
   loadGame();
