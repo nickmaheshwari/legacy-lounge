@@ -155,7 +155,7 @@ export function mount(container, ctx) {
   }
 
   // ---- wheel ----
-  function drawWheel(winN) {
+  function drawWheel(winN, ballAngle = -Math.PI / 2) {
     const w = canvas.width, h = canvas.height, cx = w / 2, cy = h / 2, R = w / 2 - 6;
     const step = (Math.PI * 2) / ORDER.length;
     c2.clearRect(0, 0, w, h);
@@ -172,6 +172,12 @@ export function mount(container, ctx) {
     c2.fillStyle = "#caa45a"; c2.beginPath(); c2.arc(cx, cy, 22, 0, Math.PI * 2); c2.fill();
     c2.fillStyle = "#1b1208"; c2.beginPath(); c2.arc(cx, cy, 16, 0, Math.PI * 2); c2.fill();
     if (winN != null) { c2.fillStyle = "#f3d27a"; c2.font = "bold 18px Georgia, serif"; c2.textAlign = "center"; c2.textBaseline = "middle"; c2.fillText(String(winN), cx, cy); }
+    // ball riding the track
+    const bx = cx + Math.cos(ballAngle) * (R - 12), by = cy + Math.sin(ballAngle) * (R - 12);
+    c2.fillStyle = "rgba(0,0,0,0.3)"; c2.beginPath(); c2.arc(bx + 1, by + 2, 6, 0, Math.PI * 2); c2.fill();
+    c2.fillStyle = "#fdfdf5"; c2.beginPath(); c2.arc(bx, by, 6, 0, Math.PI * 2); c2.fill();
+    c2.fillStyle = "rgba(255,255,255,0.9)"; c2.beginPath(); c2.arc(bx - 2, by - 2, 2, 0, Math.PI * 2); c2.fill();
+    // pointer
     c2.fillStyle = "#f3e8cf"; c2.beginPath(); c2.moveTo(cx, 6); c2.lineTo(cx - 10, -10); c2.lineTo(cx + 10, -10); c2.closePath(); c2.fill();
   }
 
@@ -179,15 +185,20 @@ export function mount(container, ctx) {
     const idx = ORDER.indexOf(result), step = (Math.PI * 2) / ORDER.length;
     const start = rot;
     const base = ((-idx * step - start) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-    const target = start + base + Math.PI * 2 * 6;
-    const dur = 4200, t0 = performance.now();
+    const target = start + base + Math.PI * 2 * 9;   // 9 turns, longer
+    const dur = 7000, t0 = performance.now();         // ~7s, dramatic
+    const ballTurns = Math.PI * 2 * 18;               // ball whirls opposite, settles at top
     cancelAnimationFrame(raf);
-    msg.textContent = "Spinning…"; msg.className = "casino-msg";
+    msg.textContent = "No more bets — spinning…"; msg.className = "casino-msg";
     (function frame(now) {
-      const p = Math.min((now - t0) / dur, 1), ease = 1 - Math.pow(1 - p, 3);
-      rot = start + (target - start) * ease; drawWheel();
+      const p = Math.min((now - t0) / dur, 1);
+      const easeWheel = 1 - Math.pow(1 - p, 4);       // long graceful tail
+      const easeBall = 1 - Math.pow(1 - p, 5);        // ball lags then drops in
+      rot = start + (target - start) * easeWheel;
+      const ballAngle = -Math.PI / 2 - ballTurns * (1 - easeBall);
+      drawWheel(null, ballAngle);
       if (p < 1) raf = requestAnimationFrame(frame);
-      else { rot %= Math.PI * 2; drawWheel(result); afterSpin(result); }
+      else { rot %= Math.PI * 2; drawWheel(result, -Math.PI / 2); afterSpin(result); }
     })(t0);
   }
 

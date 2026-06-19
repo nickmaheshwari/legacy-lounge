@@ -60,10 +60,12 @@ function drawLounge(ctx, t) {
   // hearth
   hearth(ctx, WORLD_W / 2, t);
 
-  // portraits + sconces
-  portrait(ctx, 330, 70, 120, 130);
-  portrait(ctx, WORLD_W - 330, 70, 120, 130);
-  sconce(ctx, 170, 150, t); sconce(ctx, WORLD_W - 170, 150, t);
+  // moonlit windows + portraits + sconces
+  windowPane(ctx, 215, 60, 120, 150);
+  windowPane(ctx, WORLD_W - 215, 60, 120, 150);
+  portrait(ctx, 410, 70, 110, 120);
+  portrait(ctx, WORLD_W - 410, 70, 110, 120);
+  sconce(ctx, 120, 150, t); sconce(ctx, WORLD_W - 120, 150, t);
 
   // two chess tables
   for (const [x, name] of [[500, "Chess I"], [820, "Chess II"]]) {
@@ -87,7 +89,9 @@ function drawHighRoller(ctx, t) {
   // dark patterned floor
   drawWoodFloor(ctx, "#2a1418", "#160a0c");
 
-  // neon sign
+  // chandeliers over the tables + neon sign
+  chandelier(ctx, 430, 120, t);
+  chandelier(ctx, 880, 120, t);
   neonSign(ctx, "HIGH ROLLER'S ROOM", WORLD_W / 2, 70, t);
 
   // hanging lamps glow over tables
@@ -240,6 +244,52 @@ function chip(ctx, x, y, color) {
 function label(ctx, text, x, y) {
   ctx.fillStyle = "rgba(255,245,220,0.92)"; ctx.font = "600 15px Georgia, serif"; ctx.textAlign = "center";
   ctx.fillText(text, x, y);
+}
+
+function windowPane(ctx, cx, top, w, h) {
+  const x = cx - w / 2;
+  // arched night-sky glass
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x, top + h); ctx.lineTo(x, top + w / 2);
+  ctx.arc(cx, top + w / 2, w / 2, Math.PI, 0); ctx.lineTo(x + w, top + h); ctx.closePath();
+  ctx.clip();
+  const sky = ctx.createLinearGradient(0, top, 0, top + h);
+  sky.addColorStop(0, "#0b1233"); sky.addColorStop(1, "#1b2a55");
+  ctx.fillStyle = sky; ctx.fillRect(x, top, w, h);
+  // moon + glow
+  ctx.fillStyle = "rgba(245,240,210,0.25)"; ctx.beginPath(); ctx.arc(cx + w * 0.22, top + h * 0.32, w * 0.28, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#f5f0d2"; ctx.beginPath(); ctx.arc(cx + w * 0.22, top + h * 0.32, w * 0.16, 0, Math.PI * 2); ctx.fill();
+  // stars
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  for (const [sx, sy] of [[0.2, 0.25], [0.4, 0.5], [0.7, 0.6], [0.3, 0.7], [0.6, 0.3]]) {
+    ctx.fillRect(x + w * sx, top + h * sy, 2, 2);
+  }
+  ctx.restore();
+  // gold frame + mullions
+  ctx.strokeStyle = "#caa45a"; ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(x, top + h); ctx.lineTo(x, top + w / 2);
+  ctx.arc(cx, top + w / 2, w / 2, Math.PI, 0); ctx.lineTo(x + w, top + h); ctx.closePath(); ctx.stroke();
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx, top + h); ctx.moveTo(x, top + h * 0.55); ctx.lineTo(x + w, top + h * 0.55); ctx.stroke();
+}
+
+function chandelier(ctx, x, y, t) {
+  ctx.strokeStyle = "#7a5a20"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y); ctx.stroke();
+  ctx.strokeStyle = "#caa45a"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(x, y, 46, 16, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "#caa45a"; ctx.beginPath(); ctx.ellipse(x, y, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+  for (let i = 0; i < 5; i++) {
+    const cxp = x + (i - 2) * 22;
+    ctx.fillStyle = "#caa45a"; ctx.fillRect(cxp - 2, y - 4, 4, 10);
+    const fl = 0.8 + Math.sin(t * 10 + i) * 0.2;
+    const g = ctx.createRadialGradient(cxp, y - 8, 1, cxp, y - 8, 26 * fl);
+    g.addColorStop(0, "rgba(255,210,120,0.85)"); g.addColorStop(1, "rgba(255,210,120,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cxp, y - 8, 26 * fl, 0, Math.PI * 2); ctx.fill();
+    flame(ctx, cxp, y - 6, 5, 12 * fl);
+  }
 }
 
 function ellipseFill(ctx, x, y, rx, ry, fill) { ctx.fillStyle = fill; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); }

@@ -6,7 +6,7 @@ import { joinRoom } from "./realtime.js";
 export const WORLD_W = 1280;
 export const WORLD_H = 720;
 const SPEED = 230;
-const AVATAR_R = 22;
+const AVATAR_R = 27;
 const PUBLISH_MS = 120;
 
 const KEY_VEC = {
@@ -158,7 +158,16 @@ export function startWorld({ canvas, userId, username, avatar = "dog", room, onE
     for (const ex of room0.exits || []) drawExit(ex);
     const all = [...others.values(), me].sort((a, b) => a.y - b.y);
     for (const p of all) drawAvatar(p);
+    drawVignette();
     drawHud();
+  }
+
+  function drawVignette() {
+    const g = ctx.createRadialGradient(WORLD_W / 2, WORLD_H * 0.46, WORLD_H * 0.32, WORLD_W / 2, WORLD_H * 0.5, WORLD_H * 0.9);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,0.5)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
   }
 
   function drawExit(ex) {
@@ -241,82 +250,103 @@ function drawAnimal(ctx, type, x, y, r, face, t, moving) {
   ctx.translate(x, y);
   ctx.scale(face, 1);
 
-  ctx.fillStyle = c.body;
-  ctx.beginPath(); ctx.ellipse(0, r * 0.7, r * 0.78, r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = c.belly;
-  ctx.beginPath(); ctx.ellipse(0, r * 0.85, r * 0.42, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+  const oval = (ox, oy, rx, ry, fill) => { ctx.fillStyle = fill; ctx.beginPath(); ctx.ellipse(ox, oy, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); };
+  const ring = (ox, oy, rx, ry, s, w) => { ctx.strokeStyle = s; ctx.lineWidth = w; ctx.beginPath(); ctx.ellipse(ox, oy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke(); };
+  const OUT = "rgba(0,0,0,0.22)";
+  const sw = moving ? Math.sin(t * 12) : 0; // -1..1 leg/tail swing
 
-  const sw = moving ? Math.sin(t * 12) * 3 : 0;
-  ctx.fillStyle = c.dark;
-  ctx.fillRect(-r * 0.5 + sw, r * 1.3, r * 0.3, r * 0.4);
-  ctx.fillRect(r * 0.2 - sw, r * 1.3, r * 0.3, r * 0.4);
+  // ---- tail (behind body) ----
+  ctx.strokeStyle = c.dark; ctx.lineWidth = r * 0.3; ctx.lineCap = "round";
+  if (type === "cat" || type === "tiger") {
+    ctx.beginPath(); ctx.moveTo(-r * 0.55, r * 0.7);
+    ctx.quadraticCurveTo(-r * 1.5, r * 0.35 + sw * r * 0.2, -r * 1.15, -r * 0.55); ctx.stroke();
+  } else if (type === "dog") {
+    ctx.beginPath(); ctx.moveTo(-r * 0.55, r * 0.5);
+    ctx.quadraticCurveTo(-r * 1.25, r * 0.05 - sw * r * 0.25, -r * 0.95, -r * 0.5); ctx.stroke();
+  }
 
-  ctx.strokeStyle = c.dark; ctx.lineWidth = r * 0.28; ctx.lineCap = "round";
-  ctx.beginPath();
-  if (type === "cat") { ctx.moveTo(-r * 0.6, r * 0.7); ctx.quadraticCurveTo(-r * 1.4, r * 0.2, -r * 1.1, -r * 0.5); }
-  else if (type === "dog") { ctx.moveTo(-r * 0.6, r * 0.5); ctx.quadraticCurveTo(-r * 1.2, r * 0.1, -r * 0.9, -r * 0.4); }
-  else { ctx.moveTo(-r * 0.6, r * 0.9); ctx.lineTo(-r * 0.85, r * 0.95); }
-  ctx.stroke();
+  // ---- feet ----
+  const footFill = type === "penguin" ? c.acc : c.dark;
+  oval(-r * 0.3 + sw * r * 0.12, r * 1.2, r * 0.24, r * 0.15, footFill);
+  oval(r * 0.3 - sw * r * 0.12, r * 1.2, r * 0.24, r * 0.15, footFill);
 
+  // ---- body ----
+  oval(0, r * 0.62, r * 0.74, r * 0.8, c.body);
+  ring(0, r * 0.62, r * 0.74, r * 0.8, OUT, 1.5);
+  if (type === "penguin") oval(0, r * 0.66, r * 0.5, r * 0.62, c.belly);
+  else oval(0, r * 0.82, r * 0.42, r * 0.5, c.belly);
+  if (type === "penguin") { oval(-r * 0.72, r * 0.6, r * 0.18, r * 0.44, c.dark); oval(r * 0.72, r * 0.6, r * 0.18, r * 0.44, c.dark); }
+
+  // ---- ears (behind head) ----
   ctx.fillStyle = c.dark;
   if (type === "cat" || type === "tiger") {
-    tri(ctx, -r * 0.55, -r * 0.45, -r * 0.15, -r * 1.25, -r * 0.05, -r * 0.55);
-    tri(ctx, r * 0.55, -r * 0.45, r * 0.15, -r * 1.25, r * 0.05, -r * 0.55);
+    tri(ctx, -r * 0.62, -r * 0.5, -r * 0.2, -r * 1.32, -r * 0.02, -r * 0.62);
+    tri(ctx, r * 0.62, -r * 0.5, r * 0.2, -r * 1.32, r * 0.02, -r * 0.62);
+    ctx.fillStyle = "rgba(255,150,165,0.85)";
+    tri(ctx, -r * 0.5, -r * 0.6, -r * 0.24, -r * 1.12, -r * 0.12, -r * 0.66);
+    tri(ctx, r * 0.5, -r * 0.6, r * 0.24, -r * 1.12, r * 0.12, -r * 0.66);
   } else if (type === "dog") {
-    ctx.beginPath(); ctx.ellipse(-r * 0.78, -r * 0.15, r * 0.3, r * 0.55, 0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * 0.78, -r * 0.15, r * 0.3, r * 0.55, -0.3, 0, Math.PI * 2); ctx.fill();
+    oval(-r * 0.82, -r * 0.25, r * 0.32, r * 0.6, c.dark);
+    oval(r * 0.82, -r * 0.25, r * 0.32, r * 0.6, c.dark);
   } else if (type === "panda") {
-    ctx.beginPath(); ctx.arc(-r * 0.6, -r * 0.78, r * 0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(r * 0.6, -r * 0.78, r * 0.3, 0, Math.PI * 2); ctx.fill();
-  } else if (type === "penguin") {
-    // small head, no protruding ears
-  } else {
-    ctx.beginPath(); ctx.arc(-r * 0.5, -r * 0.7, r * 0.2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.7, r * 0.2, 0, Math.PI * 2); ctx.fill();
-  }
+    oval(-r * 0.62, -r * 0.92, r * 0.32, r * 0.32, c.dark);
+    oval(r * 0.62, -r * 0.92, r * 0.32, r * 0.32, c.dark);
+  } else if (type === "capybara") {
+    oval(-r * 0.55, -r * 0.95, r * 0.2, r * 0.18, c.dark);
+    oval(r * 0.55, -r * 0.95, r * 0.2, r * 0.18, c.dark);
+  } // penguin: no ears
 
-  ctx.fillStyle = c.body;
-  ctx.beginPath(); ctx.arc(0, -r * 0.15, r * 0.82, 0, Math.PI * 2); ctx.fill();
+  // ---- head ----
+  oval(0, -r * 0.42, r * 0.92, r * 0.9, c.body);
+  ring(0, -r * 0.42, r * 0.92, r * 0.9, OUT, 1.5);
+  if (type === "penguin") oval(0, -r * 0.34, r * 0.66, r * 0.66, c.belly); // white face
+  if (type === "tiger") oval(0, -r * 0.18, r * 0.5, r * 0.4, c.belly);     // pale muzzle
+  if (type === "dog") oval(0, -r * 0.18, r * 0.46, r * 0.36, c.belly);
 
-  ctx.fillStyle = c.belly;
-  if (type === "capybara") { ctx.beginPath(); ctx.roundRect(-r * 0.5, r * 0.05, r, r * 0.6, 6); ctx.fill(); }
-  else if (type === "penguin") { ctx.beginPath(); ctx.ellipse(0, r * 0.1, r * 0.6, r * 0.5, 0, 0, Math.PI * 2); ctx.fill(); }
-  else { ctx.beginPath(); ctx.ellipse(0, r * 0.18, r * 0.42, r * 0.32, 0, 0, Math.PI * 2); ctx.fill(); }
-
-  // panda eye patches (behind the eyes)
+  // panda eye patches (behind eyes)
   if (type === "panda") {
     ctx.fillStyle = "#1c1c1c";
-    ctx.beginPath(); ctx.ellipse(-r * 0.3, -r * 0.22, r * 0.2, r * 0.27, 0.4, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * 0.3, -r * 0.22, r * 0.2, r * 0.27, -0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-r * 0.34, -r * 0.46, r * 0.24, r * 0.3, 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r * 0.34, -r * 0.46, r * 0.24, r * 0.3, -0.45, 0, Math.PI * 2); ctx.fill();
   }
 
-  ctx.fillStyle = "#fff";
-  ctx.beginPath(); ctx.arc(-r * 0.3, -r * 0.25, r * 0.17, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(r * 0.3, -r * 0.25, r * 0.17, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = c.eye;
-  ctx.beginPath(); ctx.arc(-r * 0.27, -r * 0.25, r * 0.09, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(r * 0.33, -r * 0.25, r * 0.09, 0, Math.PI * 2); ctx.fill();
+  // ---- big cute eyes ----
+  const ex = r * 0.34, ey = -r * 0.5, er = r * 0.22;
+  for (const sx of [-1, 1]) {
+    oval(sx * ex, ey, er, er * 1.05, "#fff");
+    oval(sx * ex, ey + er * 0.1, er * 0.62, er * 0.72, c.eye);     // iris
+    oval(sx * ex, ey + er * 0.18, er * 0.34, er * 0.4, "#16110d"); // pupil
+    oval(sx * ex - er * 0.22, ey - er * 0.22, er * 0.2, er * 0.2, "rgba(255,255,255,0.95)"); // highlight
+  }
 
-  ctx.fillStyle = "#241812";
-  ctx.beginPath(); ctx.arc(0, r * 0.05, r * 0.12, 0, Math.PI * 2); ctx.fill();
+  // ---- cheeks ----
+  oval(-r * 0.56, -r * 0.16, r * 0.16, r * 0.1, "rgba(255,140,150,0.33)");
+  oval(r * 0.56, -r * 0.16, r * 0.16, r * 0.1, "rgba(255,140,150,0.33)");
 
+  // ---- nose / beak / extras ----
+  if (type === "penguin") {
+    ctx.fillStyle = c.acc;
+    tri(ctx, -r * 0.16, -r * 0.12, r * 0.16, -r * 0.12, 0, r * 0.14);
+    tri(ctx, -r * 0.16, -r * 0.06, r * 0.16, -r * 0.06, 0, r * 0.2);
+  } else {
+    oval(0, -r * 0.12, r * 0.13, r * 0.1, "#241812"); // nose
+    ctx.strokeStyle = "#241812"; ctx.lineWidth = Math.max(1, r * 0.05); ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(0, -r * 0.02); ctx.lineTo(0, r * 0.06);
+    ctx.moveTo(0, r * 0.06); ctx.quadraticCurveTo(-r * 0.12, r * 0.14, -r * 0.2, r * 0.08);
+    ctx.moveTo(0, r * 0.06); ctx.quadraticCurveTo(r * 0.12, r * 0.14, r * 0.2, r * 0.08); ctx.stroke();
+  }
   if (type === "cat") {
-    ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1.2;
-    for (const dy of [0.12, 0.26]) { seg(ctx, r * 0.15, r * 0.05 + r * dy, r * 0.95, r * dy); seg(ctx, -r * 0.15, r * 0.05 + r * dy, -r * 0.95, r * dy); }
-  } else if (type === "dog") {
-    if (moving) { ctx.fillStyle = "#e0697a"; ctx.beginPath(); ctx.roundRect(-r * 0.08, r * 0.16, r * 0.16, r * 0.3, 4); ctx.fill(); }
+    ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1.3;
+    for (const dy of [-0.02, 0.1]) { seg(ctx, r * 0.16, r * 0.0 + r * dy, r * 0.95, r * dy - r * 0.05); seg(ctx, -r * 0.16, r * 0.0 + r * dy, -r * 0.95, r * dy - r * 0.05); }
+  } else if (type === "dog" && moving) {
+    oval(0, r * 0.18, r * 0.1, r * 0.16, "#e0697a"); // tongue
   } else if (type === "tiger") {
-    ctx.strokeStyle = c.dark; ctx.lineWidth = r * 0.1; ctx.lineCap = "round";
-    seg(ctx, -r * 0.55, -r * 0.5, -r * 0.38, -r * 0.18);
-    seg(ctx, 0, -r * 0.72, 0, -r * 0.45);
-    seg(ctx, r * 0.55, -r * 0.5, r * 0.38, -r * 0.18);
-    seg(ctx, -r * 0.42, r * 0.45, -r * 0.32, r * 0.85);
-    seg(ctx, r * 0.42, r * 0.45, r * 0.32, r * 0.85);
-  } else if (type === "penguin") {
-    ctx.fillStyle = c.acc; // orange beak over the nose
-    tri(ctx, -r * 0.14, r * 0.02, r * 0.14, r * 0.02, 0, r * 0.24);
-  } else if (type === "capybara") {
-    ctx.fillStyle = c.acc; ctx.fillRect(-r * 0.16, r * 0.32, r * 0.32, r * 0.12);
+    ctx.strokeStyle = c.dark; ctx.lineWidth = r * 0.09; ctx.lineCap = "round";
+    seg(ctx, -r * 0.6, -r * 0.6, -r * 0.42, -r * 0.28);
+    seg(ctx, 0, -r * 0.95, 0, -r * 0.66);
+    seg(ctx, r * 0.6, -r * 0.6, r * 0.42, -r * 0.28);
+    seg(ctx, -r * 0.5, r * 0.5, -r * 0.4, r * 0.95);
+    seg(ctx, r * 0.5, r * 0.5, r * 0.4, r * 0.95);
   }
   ctx.restore();
 }
