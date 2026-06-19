@@ -1,40 +1,37 @@
-// Realtime room presence. One shared channel ("room:lobby") tracks every player's
-// identity + target position. Click-to-move is infrequent, so we update presence
-// on each click instead of streaming positions — keeps message volume well under
-// the free-tier cap. Clients interpolate toward targets locally (see world.js).
+// Realtime room. Presence carries identity (id/username/avatar) + spawn so we
+// know WHO is in the room; live movement goes over BROADCAST events, which
+// propagate reliably to already-connected clients (presence re-track updates do
+// not always re-fire 'sync' on peers). We also re-track on move so late joiners
+// get everyone's current position from the presence snapshot.
 import { supabase } from "./supabase.js";
 
-export function joinRoom({ channel: channelName = "room:lounge", userId, username, color, avatar, spawn, onState }) {
+export function joinRoom({ channel: channelName = "room:lounge", userId, username, avatar, spawn, onPresence, onMove }) {
   const channel = supabase.channel(channelName, {
-    config: { presence: { key: userId } },
+    config: { presence: { key: userId }, broadcast: { self: false } },
   });
 
-  // self state we publish via presence
-  let self = { id: userId, username, color, avatar, x: spawn.x, y: spawn.y };
+  let self = { id: userId, username, avatar, x: spawn.x, y: spawn.y };
 
   channel.on("presence", { event: "sync" }, () => {
     const state = channel.presenceState();
-    // presenceState(): { key: [ {..meta..}, ... ] } — take first meta per key.
-    const players = Object.values(state)
-      .map((metas) => metas[0])
-      .filter(Boolean);
-    onState(players);
+    const players = Object.values(state).map((metas) => metas[0]).filter(Boolean);
+    onPresence(players);
+  });
+
+  channel.on("broadcast", { event: "move" }, ({ payload }) => {
+    if (payload && payload.id !== userId) onMove(payload);
   });
 
   channel.subscribe(async (status) => {
-    if (status === "SUBSCRIBED") {
-      await channel.track(self);
-    }
+    if (status === "SUBSCRIBED") await channel.track(self);
   });
 
   return {
-    // Update our target position and republish.
     move(x, y) {
       self = { ...self, x, y };
-      channel.track(self);
+      channel.send({ type: "broadcast", event: "move", payload: { id: userId, x, y } });
+      channel.track(self); // keep presence position fresh for late joiners
     },
-    leave() {
-      channel.unsubscribe();
-    },
+    leave() { channel.unsubscribe(); },
   };
 }

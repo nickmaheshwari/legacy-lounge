@@ -44,18 +44,26 @@ export function startWorld({ canvas, userId, username, avatar = "dog", room, onE
 
   const room0 = room;
   const conn = joinRoom({
-    channel: room.channel, userId, username, avatar, color: null,
+    channel: room.channel, userId, username, avatar,
     spawn: { x: me.x, y: me.y },
-    onState(list) {
+    // presence: who is here. New players spawn at their presence position;
+    // for known players we only refresh identity (live movement comes via onMove).
+    onPresence(list) {
       const seen = new Set();
       for (const p of list) {
         if (p.id === userId) continue;
         seen.add(p.id);
         const ex = others.get(p.id);
-        if (ex) { ex.tx = p.x; ex.ty = p.y; ex.username = p.username; ex.avatar = p.avatar; }
+        if (ex) { ex.username = p.username; ex.avatar = p.avatar; }
         else others.set(p.id, { username: p.username, avatar: p.avatar, x: p.x, y: p.y, tx: p.x, ty: p.y });
       }
       for (const id of others.keys()) if (!seen.has(id)) others.delete(id);
+    },
+    // broadcast: live position updates.
+    onMove(p) {
+      const ex = others.get(p.id);
+      if (ex) { ex.tx = p.x; ex.ty = p.y; }
+      else others.set(p.id, { username: "…", avatar: "dog", x: p.x, y: p.y, tx: p.x, ty: p.y });
     },
   });
 
