@@ -21,11 +21,13 @@ export function mount(container, ctx) {
   const userId = user.id;
   const tableId = ctx.table || "lounge-1";
 
+  const CPU_NAME = "CPU 🤖";
   const chess = new Chess();
   let game = null;        // chess_games row
   let selected = null;    // selected square e.g. "e2"
   let legalTargets = [];  // squares the selected piece can move to
   let gameSub = null;
+  let vsCpu = false;      // single-player vs a client-side bot (you hold both seats)
 
   // ----- DOM -----
   const wrap = document.createElement("div");
@@ -37,9 +39,10 @@ export function mount(container, ctx) {
   const controls = document.createElement("div");
   controls.className = "chess-controls";
   const resignBtn = button("Resign", onResign);
+  const cpuBtn = button("Play the CPU 🤖", playCpu);
   const newBtn = button("New game", onNewGame);
   const leaveBtn = button("Leave", onLeave);
-  controls.append(resignBtn, newBtn, leaveBtn);
+  controls.append(resignBtn, cpuBtn, newBtn, leaveBtn);
   wrap.append(status, boardEl, controls);
   container.append(wrap);
 
@@ -55,8 +58,11 @@ export function mount(container, ctx) {
   const amBlack = () => game && game.black_id === userId;
   const amPlayer = () => amWhite() || amBlack();
   const myTurn = () =>
-    game && game.status === "active" &&
-    ((game.turn === "w" && amWhite()) || (game.turn === "b" && amBlack()));
+    game && game.status === "active" && (
+      vsCpu
+        ? game.turn === "w" && amWhite()                    // vs CPU you only move White
+        : ((game.turn === "w" && amWhite()) || (game.turn === "b" && amBlack()))
+    );
 
   // ----- load or create the shared game, then seat self -----
   async function loadGame() {
@@ -71,20 +77,26 @@ export function mount(container, ctx) {
 
     if (data) game = data;
     else {
-      const { data: created } = await supabase
+      const { data: created, error } = await supabase
         .from("chess_games")
         .insert({ table_id: tableId })
         .select()
         .single();
+      if (error || !created) {
+        status.textContent = "Couldn't load this table. " + (error?.message || "");
+        status.className = "chess-status";
+        return;
+      }
       game = created;
     }
+    if (!game) return;
     await seatSelf();
     applyGame();
     subscribe();
   }
 
   async function seatSelf() {
-    if (amPlayer()) return;
+    if (!game || amPlayer()) return;
     const patch = {};
     if (!game.white_id) { patch.white_id = userId; patch.white_name = username; }
     else if (!game.black_id && game.white_id !== userId) { patch.black_id = userId; patch.black_name = username; }
@@ -116,16 +128,21 @@ export function mount(container, ctx) {
 
   // ----- render from authoritative fen -----
   function applyGame() {
+    if (!game) return;
+    vsCpu = game.black_name === CPU_NAME && game.white_id === userId;
     chess.load(game.fen);
     selected = null;
     legalTargets = [];
     render();
     renderStatus();
+    // if it's the CPU's turn (e.g. after a reload), nudge it.
+    if (vsCpu && game.status === "active" && chess.turn() === "b") setTimeout(cpuMove, 450);
   }
 
   function renderStatus() {
+    if (!game) return;
     let role = "Spectating";
-    if (amWhite()) role = "You are White";
+    if (amWhite()) role = vsCpu ? "You are White (vs CPU)" : "You are White";
     else if (amBlack()) role = "You are Black";
 
     let line;
@@ -142,6 +159,8 @@ export function mount(container, ctx) {
     status.innerHTML = "";
     status.append(div("chess-role", role), div("chess-turn", line), div("chess-names", names));
     resignBtn.disabled = !(amPlayer() && game.status === "active");
+    // Offer the CPU only when you're sitting alone (White seat, still waiting).
+    cpuBtn.style.display = (amWhite() && game.status === "waiting") ? "inline-block" : "none";
     newBtn.disabled = !(game.status !== "active" && game.status !== "waiting");
   }
 
@@ -195,10 +214,14 @@ export function mount(container, ctx) {
       move = chess.move({ from, to, promotion: "q" });
     } catch { move = null; }
     if (!move) { selected = null; legalTargets = []; render(); return; }
-
     selected = null; legalTargets = [];
     render(); // optimistic
+    await commitMove(move);
+  }
 
+  // Persist a move (used by both the human and the CPU). mover is always the
+  // signed-in user (vs CPU you hold both seats, so the bot's moves are yours).
+  async function commitMove(move) {
     const fen = chess.fen();
     const turn = chess.turn();
     let newStatus = "active";
@@ -208,16 +231,41 @@ export function mount(container, ctx) {
     const ply = chess.history().length;
     const { error: mErr } = await supabase.from("chess_moves").insert({
       game_id: game.id, mover_id: userId, ply,
-      san: move.san, uci: from + to + (move.promotion || ""), fen_after: fen,
+      san: move.san, uci: move.from + move.to + (move.promotion || ""), fen_after: fen,
     });
     const { error: gErr } = await supabase
       .from("chess_games")
       .update({ fen, turn, status: newStatus })
       .eq("id", game.id);
-    if (mErr || gErr) {
-      // reconcile to server truth on failure
-      await refresh();
+    if (mErr || gErr) { await refresh(); return; }
+    if (vsCpu && newStatus === "active" && turn === "b") setTimeout(cpuMove, 450);
+  }
+
+  const PIECE_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+  function cpuMove() {
+    if (!vsCpu || !game || game.status !== "active" || chess.turn() !== "b") return;
+    const moves = chess.moves({ verbose: true });
+    if (!moves.length) return;
+    let pick = moves.find((m) => m.san.includes("#"));                 // take mate
+    if (!pick) {
+      const caps = moves.filter((m) => m.captured).sort((a, b) => PIECE_VAL[b.captured] - PIECE_VAL[a.captured]);
+      pick = caps[0];                                                  // else best capture
     }
+    if (!pick) pick = moves[Math.floor(Math.random() * moves.length)]; // else random
+    const move = chess.move(pick);
+    render();
+    commitMove(move);
+  }
+
+  async function playCpu() {
+    if (!game || game.status !== "waiting" || !amWhite()) return;
+    const { data } = await supabase
+      .from("chess_games")
+      .update({ black_id: userId, black_name: CPU_NAME, status: "active" })
+      .eq("id", game.id)
+      .select()
+      .single();
+    if (data) { game = data; applyGame(); }
   }
 
   async function refresh() {
