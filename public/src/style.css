@@ -207,11 +207,4 @@ button:disabled { background: #3a4a6b; cursor: not-allowed; }
 .bet-chip.even, .bet-chip.odd, .bet-chip.low, .bet-chip.high { background: #356; }
 .bet-chip.sel { border-color: #f3d27a; box-shadow: 0 0 10px rgba(243,210,122,0.6); }
 
-.roulette-result {
-  width: 70px; height: 70px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 1.8rem; font-weight: 800; color: #fff; background: #444;
-  border: 3px solid #caa45a;
-}
-.roulette-result.red { background: #c0392b; }
-.roulette-result.black { background: #1c1c1c; }
-.roulette-result.green { background: #0c7a3a; }
+.roulette-canvas { display: block; margin: 0.25rem auto; }
