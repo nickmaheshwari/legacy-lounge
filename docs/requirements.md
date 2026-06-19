@@ -1,39 +1,36 @@
-# Legacy League — Requirements
+# Legacy League — Requirements & Decisions
 
-Living doc.
+Living doc. Vision + the decisions behind the architecture, and what's shipped vs deferred. For *how it's built*, see `architecture.md`.
 
 ## Vision
-Club-Penguin-style 2D social hangout. Sign up → walk a shared room → chat + PMs → play chess.
+Club-Penguin-style 2D social hangout. Sign up as an animal → walk between rooms → chat + PMs → play games (some for in-game cash).
 
-## Decided
-- Hosting: GitHub Pages (client) + Supabase (backend). $0 to start.
-- Auth phase 1: username + password via Supabase Auth (synthetic email), unique username DB-enforced. No email verify yet.
-- Rendering: **Canvas 2D**, no engine, no build step.
-- World: **single shared room** (one presence channel).
-- Movement: **click-to-move** (send target, others interpolate). WASD deferred.
-- Realtime split:
-  - Movement + presence → Realtime broadcast/presence (ephemeral).
-  - Chat, PMs, chess → Postgres tables + Realtime postgres_changes (persisted, RLS).
-- Mini-game #1: **Chess**, 2 players, others can spectate.
+## Decisions (and why)
+- **Hosting: GitHub Pages (client) + Supabase (backend).** Chosen for low latency (WebSocket Realtime), low maintenance (managed, no server to run), strong security (managed Auth + Row Level Security), and $0 cost at this scale. Firebase was rejected on cost predictability; a custom Node/WS server on operational burden.
+- **Static client, no build step.** Maximum simplicity; libs via esm.sh.
+- **Auth phase 1:** username + password via Supabase Auth using a synthetic email (`<user>@players.legacyleague.local`); unique username DB-enforced. No email verification yet.
+- **Rendering:** Canvas 2D, no engine, room-generic. Logical 1280×720, camera scales to fit.
+- **Movement:** WASD/arrows + click-to-move. Live movement over Realtime *broadcast*; presence carries identity.
+- **Realtime split:** presence/broadcast for movement; postgres_changes for chat/PMs/chess.
+- **Stakes are server-authoritative.** Cash and gambling outcomes are computed in Postgres RPCs; the `cash` column is not client-writable.
 
-## MVP scope
-1. **World**: canvas room, click-to-move avatar (colored circle + username label for MVP art), see other players move via presence/broadcast.
-2. **Chat**: server-wide chat panel (persisted, last N messages). PMs between two users.
-3. **Chess**: a board object in the room; walk to it to sit. 2 seats. `chess.js` validates legal moves client-side; moves persisted to DB and synced so both players + spectators see live board. Win/draw/resign handled.
+## Shipped
+1. **World** — Canvas room engine; WASD + click movement; animal avatars (dog/cat/capybara) chosen at signup; see others move in real time via presence/broadcast; aristocrat-lounge art (hearth, rug, portraits) drawn programmatically.
+2. **Rooms** — Two zones: **The Lounge** and the **High Roller's Room**, connected by clickable exit arrows; each room has its own presence channel.
+3. **Chat** — server-wide chat panel (persisted) + `/pm <user> <msg>` direct messages.
+4. **Chess** (Lounge) — `chess.js` rules, clickable board overlay, 2 seats + spectators, synced via `chess_games.fen`, resign/checkmate/draw.
+5. **Cash** — every player starts at **$500** (`profiles.cash`), shown in the header, mutated only by server RPCs.
+6. **Gambling** (High Roller's Room), max bet **$10**:
+   - **Blackjack** — server deals/hits/stands and settles (3:2 on naturals) via `bj_*` RPCs; hand state in `blackjack_hands`.
+   - **Roulette** — European single-zero; server spins + pays (`play_roulette`); red/black/even/odd/low/high at 1:1, straight number at 35:1.
 
-## Chess design
-- `chess.js` (CDN ESM) = rules engine (legal moves, check/mate/draw). Board rendered as clickable squares (DOM/SVG overlay over canvas).
-- Tables: `chess_games` (players, FEN, status, turn), `chess_moves` (game_id, ply, move SAN/UCI). RLS: players write own moves on their turn; anyone authenticated reads (spectate).
-- Anti-cheat: low stakes; client validates via chess.js, DB stores authoritative move log. Optional later: edge function re-validates each move against FEN.
+## Deferred / backlog
+- Harden chess seat-claim race; optional server-side chess move re-validation (edge function).
+- More rooms / scrolling maps; more mini-games (sled race, fishing) via the `new-minigame` skill.
+- Avatar customization beyond species; real sprite art.
+- Real auth (email verify / OAuth); chat moderation / profanity filter / stronger rate limits.
+- Roulette wheel-spin animation; sounds; gambling history / leaderboard.
+- Mobile touch controls.
 
-## Deferred (post-MVP)
-- Multiple zones, scrolling map.
-- Avatar customization (colors/items).
-- More mini-games (sled race, fishing) via `new-minigame` skill.
-- Real auth (email verify / OAuth), moderation/profanity filter, rate limits beyond basic.
-- Mobile WASD / touch joystick.
-
-## Open / need from user
-- **Supabase project**: need `SUPABASE_URL` + anon key in `public/src/config.js` to run/test live. (Create free project at supabase.com.)
-- Art: MVP uses simple shapes; real sprite art TBD.
-- Chat moderation/rate limit specifics TBD.
+## Operational notes
+- Run/test live needs a Supabase project: put `SUPABASE_URL` + anon key in `.env`, run `./scripts/dev.sh`. Apply `supabase/setup.sql` (fresh) or the latest migration (existing), then `NOTIFY pgrst, 'reload schema';`. Turn **off** Auth → Email → "Confirm email" so signup works without an inbox.

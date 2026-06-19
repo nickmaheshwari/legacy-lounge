@@ -1,30 +1,33 @@
 ---
 name: new-minigame
-description: Scaffold a new mini-game module for Legacy League with a consistent lifecycle (mount/unmount, score submit). Use when adding any mini-game (e.g. sled race, memory match, fishing).
+description: Scaffold a new mini-game / game overlay for Legacy League with the standard mount/unmount lifecycle. Use when adding any game launched from a room (e.g. chess, blackjack, roulette, sled race).
 ---
 
 # Add a mini-game
 
-Mini-games are self-contained ES modules under `public/src/minigames/<name>/`. The world launches them in an overlay and tears them down cleanly.
+Games are self-contained ES modules under `public/src/minigames/<name>/`. A room hotspot launches them: `main.openGame(id)` mounts the module into the `#overlay` and tears it down on close.
 
 ## Contract
-Each mini-game exports:
 ```js
 export const meta = { id, title, maxPlayers };
-export function mount(container, ctx) { /* returns nothing; render into container */ }
-export function unmount() { /* remove listeners, timers, DOM */ }
+export function mount(container, ctx) { /* render into container */ }
+export function unmount() { /* remove ALL listeners, timers, RAF, channels */ }
 ```
-`ctx` provides: `{ supabase, user, onScore(score) }`.
+`ctx = { supabase, user, username, startCash, onCash(newCash), close() }`
+- `startCash` — the player's cash at open; `onCash(n)` — call after any payout so the header updates.
+- `close()` — call to dismiss the overlay (wire a Leave button to it).
+- Not every game uses cash (chess ignores `startCash`/`onCash`).
 
 ## Steps
-1. `public/src/minigames/<name>/index.js` implementing the contract.
-2. Game logic in same folder; keep it framework-free.
-3. On game end, call `ctx.onScore(score)`. Score persistence goes through the `minigame_scores` table — use the `db-table` skill if it doesn't exist yet. NEVER trust a raw client score for anything ranked; validate server-side (DB trigger/edge function) if stakes exist.
-4. Register the game in `public/src/minigames/registry.js`.
-5. Always implement `unmount` fully — remove every event listener, `requestAnimationFrame`, and timer to avoid leaks across game switches.
+1. Create `public/src/minigames/<name>/index.js` implementing the contract. Keep logic framework-free; render plain DOM into `container`.
+2. Register it in `public/src/minigames/registry.js` (`<id>: () => import("./<name>/index.js")`).
+3. Wire a launch point: add a hotspot in the relevant room in `rooms.js` whose `onEnter` is a callback passed through `buildRooms(...)` in `main.js`, and have `main.js` call `openGame("<id>")`.
+4. **Stakes are server-authoritative.** If the game involves cash or any ranked score, the RNG/outcome/payout MUST run in a SECURITY DEFINER RPC (see the gambling migration + `db-table` skill). The client only sends a bet/action and reflects the server's returned `cash`. NEVER compute a balance or trust a raw client score.
+5. `unmount` must remove every event listener, `requestAnimationFrame`, timer, and any Supabase channel/subscription the game created — overlays open/close repeatedly.
 
 ## Checklist
-- [ ] Implements mount/unmount/meta
-- [ ] unmount removes ALL listeners/timers/RAF
-- [ ] Score path uses RLS-guarded table
+- [ ] Implements meta/mount/unmount
 - [ ] Registered in registry.js
+- [ ] Launched via a room hotspot → main.openGame
+- [ ] unmount removes ALL listeners/timers/RAF/subscriptions
+- [ ] Any stakes handled by a server-side RPC; cash reflected via onCash (never written client-side)

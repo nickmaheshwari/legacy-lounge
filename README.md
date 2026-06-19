@@ -1,12 +1,12 @@
 # Legacy League
 
-A Club-Penguin-style 2D social hangout game. Sign up, walk a shared map, chat (server-wide + PMs), play mini-games.
+A Club-Penguin-style 2D social hangout game. Sign up as an animal, walk between rooms, chat (server-wide + PMs), and play games — chess in the Lounge, blackjack + roulette for in-game cash in the High Roller's Room.
 
 ## Stack
 - **Client**: static vanilla-JS (ES modules), no build step → GitHub Pages.
 - **Backend**: Supabase (Auth, Postgres, Realtime). $0 free tier.
 
-See `CLAUDE.md` for architecture + conventions, `docs/` for design.
+Docs: `CLAUDE.md` (orientation + conventions), `docs/architecture.md` (deep dive), `docs/requirements.md` (vision, decisions, shipped vs deferred).
 
 ## Local dev
 1. Create a Supabase project (free). Grab the project URL + anon key (Settings → API).
