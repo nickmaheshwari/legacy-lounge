@@ -14,6 +14,26 @@ const GLYPH = {
 };
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
 
+// ---- CPU engine constants ----
+const VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+const MATE = 100000;
+const SEARCH_DEPTH = 3;
+// Piece-square tables, indexed a1=0 .. h8=63 (rank1 first), from White's view.
+const PST = {
+  p: [0,0,0,0,0,0,0,0, 5,10,10,-20,-20,10,10,5, 5,-5,-10,0,0,-10,-5,5, 0,0,0,20,20,0,0,0,
+      5,5,10,25,25,10,5,5, 10,10,20,30,30,20,10,10, 50,50,50,50,50,50,50,50, 0,0,0,0,0,0,0,0],
+  n: [-50,-40,-30,-30,-30,-30,-40,-50, -40,-20,0,0,0,0,-20,-40, -30,0,10,15,15,10,0,-30, -30,5,15,20,20,15,5,-30,
+      -30,0,15,20,20,15,0,-30, -30,5,10,15,15,10,5,-30, -40,-20,0,5,5,0,-20,-40, -50,-40,-30,-30,-30,-30,-40,-50],
+  b: [-20,-10,-10,-10,-10,-10,-10,-20, -10,5,0,0,0,0,5,-10, -10,10,10,10,10,10,10,-10, -10,0,10,10,10,10,0,-10,
+      -10,5,5,10,10,5,5,-10, -10,0,5,10,10,5,0,-10, -10,0,0,0,0,0,0,-10, -20,-10,-10,-10,-10,-10,-10,-20],
+  r: [0,0,0,5,5,0,0,0, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5,
+      -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, 5,10,10,10,10,10,10,5, 0,0,0,0,0,0,0,0],
+  q: [-20,-10,-10,-5,-5,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,5,5,5,0,-10, -5,0,5,5,5,5,0,-5,
+      0,0,5,5,5,5,0,-5, -10,5,5,5,5,5,0,-10, -10,0,5,0,0,0,0,-10, -20,-10,-10,-5,-5,-10,-10,-20],
+  k: [20,30,10,0,0,10,30,20, 20,20,0,0,0,0,20,20, -10,-20,-20,-20,-20,-20,-20,-10, -20,-30,-30,-40,-40,-30,-30,-20,
+      -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30],
+};
+
 let teardown = null;
 
 export function mount(container, ctx) {
@@ -241,18 +261,55 @@ export function mount(container, ctx) {
     if (vsCpu && newStatus === "active" && turn === "b") setTimeout(cpuMove, 450);
   }
 
-  const PIECE_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+  // ---- CPU engine: negamax + alpha-beta over chess.js ----
+  function staticEval() {
+    let s = 0;
+    const b = chess.board();
+    for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
+      const p = b[r][f]; if (!p) continue;
+      const v = VAL[p.type];
+      if (p.color === "w") s += v + PST[p.type][(7 - r) * 8 + f];
+      else s -= v + PST[p.type][r * 8 + f];
+    }
+    return chess.turn() === "w" ? s : -s; // side-to-move perspective
+  }
+  function orderMoves(moves) {
+    return moves.slice().sort((a, b) => oScore(b) - oScore(a));
+  }
+  function oScore(m) {
+    let s = 0;
+    if (m.captured) s += 10 * VAL[m.captured] - VAL[m.piece]; // MVV-LVA
+    if (m.promotion) s += 800;
+    return s;
+  }
+  function negamax(depth, alpha, beta) {
+    if (chess.isCheckmate()) return -(MATE + depth);  // side to move is mated; prefer faster mates
+    if (chess.isGameOver()) return 0;                 // stalemate / draw
+    if (depth === 0) return staticEval();
+    let best = -Infinity;
+    for (const m of orderMoves(chess.moves({ verbose: true }))) {
+      chess.move(m);
+      const score = -negamax(depth - 1, -beta, -alpha);
+      chess.undo();
+      if (score > best) best = score;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+
   function cpuMove() {
     if (!vsCpu || !game || game.status !== "active" || chess.turn() !== "b") return;
-    const moves = chess.moves({ verbose: true });
+    const moves = orderMoves(chess.moves({ verbose: true }));
     if (!moves.length) return;
-    let pick = moves.find((m) => m.san.includes("#"));                 // take mate
-    if (!pick) {
-      const caps = moves.filter((m) => m.captured).sort((a, b) => PIECE_VAL[b.captured] - PIECE_VAL[a.captured]);
-      pick = caps[0];                                                  // else best capture
+    let best = moves[0], bestScore = -Infinity;
+    for (const m of moves) {
+      chess.move(m);
+      const score = -negamax(SEARCH_DEPTH - 1, -Infinity, Infinity);
+      chess.undo();
+      if (score > bestScore) { bestScore = score; best = m; }
     }
-    if (!pick) pick = moves[Math.floor(Math.random() * moves.length)]; // else random
-    const move = chess.move(pick);
+    const move = chess.move(best);
     render();
     commitMove(move);
   }
