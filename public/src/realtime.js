@@ -1,16 +1,15 @@
 // Realtime room. Presence = who's here (identity + spawn). Live movement =
 // broadcast events. One channel, listeners attached ONCE before subscribe().
 //
-// Reconnect: if the channel closes unexpectedly (socket drop), we re-call
-// channel.subscribe() on the SAME channel after a backoff — we never re-add
-// listeners (Supabase forbids that post-subscribe) and never removeChannel from
-// the status callback (that recurses). An intentional leave() sets `closed` so
-// we don't fight teardown.
+// Reconnect: the Supabase RealtimeClient owns socket reconnection — on a drop
+// it re-joins this channel and the status callback fires SUBSCRIBED again (we
+// re-track then). We must NOT call channel.subscribe() twice on one instance
+// (Phoenix throws "tried to join multiple times") nor re-add listeners, so the
+// status callback only updates flags.
 import { supabase } from "./supabase.js";
 
 export function joinRoom({ channel: channelName = "room:lounge", userId, username, avatar, spawn, onPresence, onMove }) {
   let subscribed = false;
-  let closed = false;
   let lastTrack = 0;
   let self = { id: userId, username, avatar, x: spawn.x, y: spawn.y };
 
@@ -29,17 +28,15 @@ export function joinRoom({ channel: channelName = "room:lounge", userId, usernam
     if (payload && payload.id !== userId) onMove(payload);
   });
 
-  function onStatus(status) {
+  channel.subscribe((status) => {
     console.log(`[realtime ${channelName}] ${status}`);
     if (status === "SUBSCRIBED") {
       subscribed = true;
-      channel.track(self);
-    } else if (status === "CLOSED" || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+      channel.track(self); // (re)announce identity on first join and after auto-rejoin
+    } else {
       subscribed = false;
-      if (!closed) setTimeout(() => { if (!closed) channel.subscribe(onStatus); }, 2000);
     }
-  }
-  channel.subscribe(onStatus);
+  });
 
   return {
     move(x, y) {
@@ -50,7 +47,6 @@ export function joinRoom({ channel: channelName = "room:lounge", userId, usernam
       if (now - lastTrack > 1000) { lastTrack = now; channel.track(self); }
     },
     leave() {
-      closed = true;
       subscribed = false;
       supabase.removeChannel(channel);
     },
