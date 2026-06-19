@@ -51,6 +51,7 @@ export function startWorld({ canvas, userId, username, avatar = "dog", onEnterCh
         else others.set(p.id, { username: p.username, avatar: p.avatar, x: p.x, y: p.y, tx: p.x, ty: p.y });
       }
       for (const id of others.keys()) if (!seen.has(id)) others.delete(id);
+      console.log("[presence] players:", list.map((p) => `${p.username}@${Math.round(p.x)},${Math.round(p.y)}`), "others:", others.size);
     },
   });
 
@@ -144,6 +145,18 @@ export function startWorld({ canvas, userId, username, avatar = "dog", onEnterCh
     drawTable();
     const all = [...others.values(), me].sort((a, b) => a.y - b.y);
     for (const p of all) drawAvatar(p);
+    drawHud();
+  }
+
+  function drawHud() {
+    const names = [me.username, ...[...others.values()].map((p) => p.username)];
+    ctx.fillStyle = "rgba(13,24,48,0.7)";
+    ctx.fillRect(8, 8, 190, 18 + names.length * 16);
+    ctx.fillStyle = "#9fb3d8";
+    ctx.font = "12px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(`${names.length} online`, 14, 24);
+    names.forEach((n, i) => ctx.fillText("• " + n, 14, 42 + i * 16));
   }
 
   function drawGrid() {
