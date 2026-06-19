@@ -92,6 +92,7 @@ async function openGame(id, opts = {}) {
     supabase,
     user: player.user,
     username: player.username,
+    avatar: player.avatar,
     startCash: cash,
     onCash: setCash,
     close: closeGame,

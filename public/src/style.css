@@ -285,6 +285,20 @@ button:disabled { background: #3a4a6b; cursor: not-allowed; }
   to { transform: none; opacity: 1; }
 }
 .card.dealing { animation: dealIn 0.5s cubic-bezier(0.2, 0.85, 0.25, 1) both; }
+.bj-players { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; min-height: 60px; }
+.bj-player {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  background: rgba(0,0,0,0.22); border: 1px solid rgba(202,164,90,0.35);
+  border-radius: 10px; padding: 0.4rem 0.5rem; min-width: 84px;
+}
+.bj-player.me { border-color: #f3d27a; box-shadow: 0 0 8px rgba(243,210,122,0.4); }
+.bj-player.r-win, .bj-player.r-blackjack { background: rgba(127,214,160,0.18); }
+.bj-player.r-lose { opacity: 0.6; }
+.bj-pname { font-size: 0.72rem; color: #f3e8cf; font-weight: 600; }
+.bj-pcards { gap: 0.2rem; }
+.bj-pcards .card { width: 34px; height: 48px; font-size: 0.7rem; border-radius: 5px; }
+.bj-pmeta { font-size: 0.68rem; color: #d7c7a8; }
+.bj-empty { color: rgba(255,255,255,0.5); font-size: 0.85rem; }
 .bj-row { display: flex; align-items: center; gap: 0.6rem; }
 .bj-side { width: 56px; color: #9fb3d8; }
 .cards { display: flex; gap: 0.4rem; min-height: 76px; }
