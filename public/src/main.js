@@ -17,6 +17,16 @@ const canvas = document.getElementById("world-canvas");
 const chatPanel = document.getElementById("chat-panel");
 const overlay = document.getElementById("overlay");
 const overlayContent = document.getElementById("overlay-content");
+const errBanner = document.getElementById("err-banner");
+
+function showError(label, e) {
+  const detail = e?.message || e?.error?.message || String(e);
+  errBanner.textContent = `${label}: ${detail}`;
+  errBanner.hidden = false;
+  console.error(label, e);
+}
+window.addEventListener("error", (e) => showError("Error", e));
+window.addEventListener("unhandledrejection", (e) => showError("Unhandled", e.reason));
 
 let session = null; // { world, chat, game }
 
@@ -64,14 +74,19 @@ async function enterGame(user) {
   whoami.textContent = username;
   show("game");
 
-  const world = startWorld({
-    canvas,
-    userId: user.id,
-    username,
-    avatar,
-    onEnterChess: () => openChess({ user, username }),
-  });
-  const chat = initChat({ root: chatPanel, userId: user.id, username });
+  let world, chat;
+  try {
+    world = startWorld({
+      canvas,
+      userId: user.id,
+      username,
+      avatar,
+      onEnterChess: () => openChess({ user, username }),
+    });
+  } catch (e) { showError("World", e); }
+  try {
+    chat = initChat({ root: chatPanel, userId: user.id, username });
+  } catch (e) { showError("Chat", e); }
   session = { world, chat };
 }
 
@@ -97,6 +112,7 @@ form.addEventListener("submit", async (e) => {
     await enterGame(user);
   } catch (err) {
     msg.textContent = err.message;
+    showError("Sign-in/up", err);
   }
 });
 

@@ -8,6 +8,13 @@ body {
   color: #f5f7fb;
 }
 
+#err-banner {
+  position: fixed; top: 0; left: 0; right: 0;
+  background: #b00020; color: #fff;
+  padding: 0.6rem 1rem; font-size: 0.9rem; z-index: 100;
+  white-space: pre-wrap; word-break: break-word;
+}
+
 /* ---------- auth ---------- */
 #auth-screen {
   min-height: 100vh;
