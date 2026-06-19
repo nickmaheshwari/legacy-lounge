@@ -29,6 +29,7 @@ export function mount(container, ctx) {
   const phase = div("roulette-phase");
   const canvas = document.createElement("canvas");
   canvas.className = "roulette-canvas"; canvas.width = 260; canvas.height = 260;
+  const c2 = canvas.getContext("2d");
   const msg = div("casino-msg", "");
   const betsList = div("bets-list");
   const betGrid = div("bet-grid");
@@ -154,7 +155,6 @@ export function mount(container, ctx) {
   }
 
   // ---- wheel ----
-  const c2 = canvas.getContext("2d");
   function drawWheel(winN) {
     const w = canvas.width, h = canvas.height, cx = w / 2, cy = h / 2, R = w / 2 - 6;
     const step = (Math.PI * 2) / ORDER.length;
