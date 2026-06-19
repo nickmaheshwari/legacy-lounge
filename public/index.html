@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Legacy League</title>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <main id="auth-screen" hidden>
+    <h1>Legacy League</h1>
+    <form id="auth-form">
+      <input id="username" name="username" placeholder="Username" autocomplete="username" required />
+      <input id="password" name="password" type="password" placeholder="Password" autocomplete="current-password" required />
+      <div class="buttons">
+        <button type="submit" name="action" value="login">Log in</button>
+        <button type="submit" name="action" value="signup">Sign up</button>
+      </div>
+      <p id="auth-msg" role="alert"></p>
+    </form>
+  </main>
+
+  <section id="game-screen" hidden>
+    <header>
+      <span>Welcome, <strong id="whoami"></strong></span>
+      <button id="logout">Log out</button>
+    </header>
+    <div id="world">
+      <p class="placeholder">World coming soon — requirements next.</p>
+    </div>
+  </section>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

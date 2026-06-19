@@ -1,0 +1,22 @@
+# secrets
+.env
+.env.local
+
+# supabase local
+supabase/.branches
+supabase/.temp
+**/.supabase
+
+# os / editor
+.DS_Store
+*.log
+node_modules/
+.vscode/
+.idea/
+
+# claude local overrides
+.claude/settings.local.json
+
+# local client config (copy from config.example.js); anon key is public-safe
+# but kept out of git so local/prod values don't collide
+public/src/config.js
