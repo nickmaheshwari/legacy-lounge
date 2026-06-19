@@ -305,6 +305,10 @@ button:disabled { background: #3a4a6b; cursor: not-allowed; }
 
 .roulette-canvas { display: block; margin: 0.25rem auto; }
 .roulette-wrap { max-width: 360px; }
+.rl-seats { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+.rl-seat { display: flex; flex-direction: column; align-items: center; width: 58px; }
+.rl-seat-name { font-size: 0.64rem; color: #e3b96a; max-width: 58px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-seat-amt { font-size: 0.64rem; color: #7fd6a0; font-weight: 700; }
 
 /* felt betting board */
 .roulette-board {

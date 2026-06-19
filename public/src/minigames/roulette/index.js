@@ -3,6 +3,7 @@
 // bets/RNG/payouts run in RPCs. You place a bet by dragging a chip onto the felt
 // betting board; everyone's chips show on the same board.
 import { supabase } from "../../supabase.js";
+import { drawAnimal } from "../../world.js";
 
 export const meta = { id: "roulette", title: "Roulette", maxPlayers: 8 };
 
@@ -17,10 +18,11 @@ let teardown = null;
 
 export function mount(container, ctx) {
   const uid = ctx.user.id;
-  let round = null, bets = [], hasBet = false;
+  let round = null, bets = [];
   let rot = 0, raf = 0, animatedRoundId = null, spinSent = null, nextScheduled = null;
   let sub = null, ticker = null, selChip = 10, dragEl = null;
   const cellEls = {}; // betType -> element
+  const avatarCache = {};
 
   const wrap = div("casino-wrap roulette-wrap");
   const title = div("casino-title", "🎡 Roulette — Communal Table");
@@ -29,6 +31,7 @@ export function mount(container, ctx) {
   const canvas = document.createElement("canvas");
   canvas.className = "roulette-canvas"; canvas.width = 240; canvas.height = 240;
   const c2 = canvas.getContext("2d");
+  const seats = div("rl-seats");
   const board = div("roulette-board");
   const tray = div("chip-tray");
   const msg = div("casino-msg", "Drag a chip onto the board. Max $10.");
@@ -38,7 +41,7 @@ export function mount(container, ctx) {
 
   buildBoard();
   buildTray();
-  wrap.append(title, cash, phase, canvas, board, tray, msg, controls);
+  wrap.append(title, cash, phase, seats, canvas, board, tray, msg, controls);
   container.append(wrap);
   setCash(ctx.startCash);
   drawWheel();
@@ -46,7 +49,7 @@ export function mount(container, ctx) {
   sub = supabase.channel("roulette")
     .on("postgres_changes", { event: "*", schema: "public", table: "roulette_rounds" }, ({ new: r }) => { if (r) onRound(r); })
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "roulette_bets" }, ({ new: b }) => {
-      if (round && b.round_id === round.id && !bets.some((x) => x.id === b.id)) { bets.push(b); renderBets(); }
+      if (round && b.round_id === round.id && !bets.some((x) => x.id === b.id)) { bets.push(b); renderBets(); renderSeats(); }
     })
     .subscribe();
 
@@ -119,14 +122,13 @@ export function mount(container, ctx) {
 
   async function place(bet, amount) {
     if (!round) return;
-    if (hasBet) { msg.textContent = "One bet per round."; msg.className = "casino-msg lose"; return; }
     if (round.status !== "betting" || new Date(round.betting_ends_at).getTime() <= Date.now()) {
       msg.textContent = "Betting is closed."; msg.className = "casino-msg lose"; return;
     }
     const { data, error } = await supabase.rpc("roulette_bet", { p_round: round.id, p_bet: bet, p_amount: amount });
     if (error) { msg.textContent = error.message; msg.className = "casino-msg lose"; return; }
-    hasBet = true; setCash(data.cash);
-    msg.textContent = `Bet $${amount} on ${prettyBet(bet)}.`; msg.className = "casino-msg";
+    setCash(data.cash);
+    msg.textContent = `$${amount} on ${prettyBet(bet)}. Pile 'em on!`; msg.className = "casino-msg";
   }
 
   // ---------- round flow ----------
@@ -134,7 +136,7 @@ export function mount(container, ctx) {
   async function loadBets() {
     if (!round) return;
     const { data } = await supabase.from("roulette_bets").select("*").eq("round_id", round.id);
-    bets = data || []; hasBet = bets.some((b) => b.user_id === uid); renderBets();
+    bets = data || []; renderBets(); renderSeats();
   }
   async function refreshCash() {
     const { data } = await supabase.from("profiles").select("cash").eq("id", uid).maybeSingle();
@@ -179,6 +181,27 @@ export function mount(container, ctx) {
       const win = list[0].won === true;
       const chip = div("rchip" + (mine ? " mine" : "") + (settled ? (win ? " won" : " lost") : ""), "$" + total);
       el.append(chip);
+    }
+  }
+
+  // players seated at the table (anyone with a bet this round) + their stake
+  async function renderSeats() {
+    const map = {};
+    for (const b of bets) (map[b.user_id] ||= { name: b.username, total: 0 }).total += b.amount;
+    const ids = Object.keys(map);
+    const missing = ids.filter((id) => !(id in avatarCache));
+    if (missing.length) {
+      const { data } = await supabase.from("profiles").select("id, avatar").in("id", missing);
+      (data || []).forEach((p) => { avatarCache[p.id] = p.avatar; });
+      missing.forEach((id) => { if (!(id in avatarCache)) avatarCache[id] = "dog"; });
+    }
+    seats.innerHTML = "";
+    for (const id of ids) {
+      const s = div("rl-seat");
+      const cv = document.createElement("canvas"); cv.width = 50; cv.height = 50; cv.className = "rl-seat-av";
+      drawAnimal(cv.getContext("2d"), avatarCache[id] || "dog", 25, 24, 13, 1, 0, false);
+      s.append(cv, div("rl-seat-name", id === uid ? "You" : map[id].name), div("rl-seat-amt", "$" + map[id].total));
+      seats.append(s);
     }
   }
 

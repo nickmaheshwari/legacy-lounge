@@ -266,7 +266,7 @@ const PALETTE = {
   panda: { body: "#f2f2f0", dark: "#1c1c1c", belly: "#ffffff", eye: "#1b2230", acc: "#1c1c1c" },
 };
 
-function drawAnimal(ctx, type, x, y, r, face, t, moving) {
+export function drawAnimal(ctx, type, x, y, r, face, t, moving) {
   const c = PALETTE[type] || PALETTE.dog;
   ctx.save();
   ctx.translate(x, y);
