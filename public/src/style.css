@@ -41,18 +41,35 @@ input {
   color: inherit;
   font-size: 1rem;
 }
-#avatar-pick {
-  border: 1px solid #3a4a6b;
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem 0.65rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
+.auth-tabs { display: flex; gap: 0.5rem; width: min(90vw, 320px); }
+.auth-tabs button { flex: 1; background: #2a1820; border: 1px solid #5a4422; color: #d7c7a8; }
+.auth-tabs button.active { background: linear-gradient(#a87a2e, #875f1f); color: #fff; border-color: #caa45a; }
+#auth-submit { width: min(90vw, 320px); }
+
+#avatar-pick { border: 1px solid #5a4422; border-radius: 8px; padding: 0.5rem 0.6rem 0.65rem; }
+#avatar-pick legend { font-size: 0.8rem; color: #e3b96a; padding: 0 0.3rem; }
+.avatar-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+.avatar-opt {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  padding: 0.4rem; border: 1px solid #5a4422; border-radius: 8px; cursor: pointer; font-size: 0.78rem;
 }
-#avatar-pick legend { font-size: 0.8rem; color: #9fb3d8; padding: 0 0.3rem; }
-#avatar-pick label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; }
-#avatar-pick .ava-emoji { font-size: 1.2rem; }
-.buttons { display: flex; gap: 0.5rem; }
+.avatar-opt .ava-emoji { font-size: 1.5rem; }
+.avatar-opt input { display: none; }
+.avatar-opt:has(input:checked) { border-color: #f3d27a; box-shadow: 0 0 8px rgba(243,210,122,0.5); background: rgba(243,210,122,0.08); }
+
+.header-actions { display: flex; gap: 0.5rem; }
+#profile-btn { background: #2a1820; border: 1px solid #caa45a; }
+
+#profile-modal { position: fixed; inset: 0; background: rgba(5,10,25,0.8); display: grid; place-items: center; z-index: 20; }
+.modal-card {
+  background: #11203c; border: 2px solid #6e5320; border-radius: 14px; padding: 1.25rem;
+  width: min(92vw, 380px); display: flex; flex-direction: column; gap: 0.75rem; font-family: Georgia, serif;
+}
+.modal-card h2 { margin: 0; color: #f3d27a; text-align: center; }
+.modal-card fieldset { border: 1px solid #5a4422; border-radius: 8px; }
+.modal-card legend { color: #e3b96a; font-size: 0.85rem; padding: 0 0.3rem; }
+.profile-field { display: flex; flex-direction: column; gap: 0.3rem; color: #d7c7a8; font-size: 0.9rem; }
+#profile-msg { color: #ff9b9b; min-height: 1.1em; margin: 0; text-align: center; }
 button {
   padding: 0.5rem 0.8rem;
   border: 0;

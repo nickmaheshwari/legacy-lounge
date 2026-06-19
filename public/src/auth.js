@@ -17,7 +17,7 @@ function usernameToEmail(username) {
   return `${username.trim().toLowerCase()}@${EMAIL_DOMAIN}`;
 }
 
-export const AVATARS = ["dog", "cat", "capybara"];
+export const AVATARS = ["dog", "cat", "capybara", "penguin", "tiger", "panda"];
 
 export function validateUsername(username) {
   const u = (username || "").trim();

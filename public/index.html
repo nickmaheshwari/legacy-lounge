@@ -11,19 +11,18 @@
   <div id="err-banner" hidden></div>
   <main id="auth-screen" hidden>
     <h1>Legacy League</h1>
+    <div class="auth-tabs">
+      <button type="button" id="tab-login" class="active">Log in</button>
+      <button type="button" id="tab-signup">Sign up</button>
+    </div>
     <form id="auth-form">
       <input id="username" name="username" placeholder="Username" autocomplete="username" required />
       <input id="password" name="password" type="password" placeholder="Password" autocomplete="current-password" required />
-      <fieldset id="avatar-pick">
-        <legend>Pick your animal (sign up)</legend>
-        <label><input type="radio" name="avatar" value="dog" checked /><span class="ava-emoji">🐶</span> Dog</label>
-        <label><input type="radio" name="avatar" value="cat" /><span class="ava-emoji">🐱</span> Cat</label>
-        <label><input type="radio" name="avatar" value="capybara" /><span class="ava-emoji">🦫</span> Capybara</label>
+      <fieldset id="avatar-pick" hidden>
+        <legend>Pick your animal</legend>
+        <div id="signup-avatars" class="avatar-grid"></div>
       </fieldset>
-      <div class="buttons">
-        <button type="submit" name="action" value="login">Log in</button>
-        <button type="submit" name="action" value="signup">Sign up</button>
-      </div>
+      <button type="submit" id="auth-submit">Log in</button>
       <p id="auth-msg" role="alert"></p>
     </form>
   </main>
@@ -31,7 +30,10 @@
   <section id="game-screen" hidden>
     <header>
       <span>Welcome, <strong id="whoami"></strong> &nbsp;·&nbsp; <strong id="cash">$0</strong></span>
-      <button id="logout">Log out</button>
+      <div class="header-actions">
+        <button id="profile-btn">⚙ Profile</button>
+        <button id="logout">Log out</button>
+      </div>
     </header>
 
     <div class="layout">
@@ -43,6 +45,24 @@
 
     <div id="overlay" hidden>
       <div id="overlay-content"></div>
+    </div>
+
+    <div id="profile-modal" hidden>
+      <div class="modal-card">
+        <h2>Profile</h2>
+        <label class="profile-field">Username
+          <input id="profile-username" autocomplete="off" />
+        </label>
+        <fieldset>
+          <legend>Avatar</legend>
+          <div id="profile-avatars" class="avatar-grid"></div>
+        </fieldset>
+        <p id="profile-msg" role="alert"></p>
+        <div class="casino-controls">
+          <button type="button" id="profile-save">Save</button>
+          <button type="button" id="profile-cancel">Cancel</button>
+        </div>
+      </div>
     </div>
   </section>
 
