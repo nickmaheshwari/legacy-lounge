@@ -4,6 +4,7 @@
 // betting board; everyone's chips show on the same board.
 import { supabase } from "../../supabase.js";
 import { drawAnimal } from "../../world.js";
+import * as sound from "../../sound.js";
 
 export const meta = { id: "roulette", title: "Roulette", maxPlayers: 8 };
 
@@ -127,7 +128,7 @@ export function mount(container, ctx) {
     }
     const { data, error } = await supabase.rpc("roulette_bet", { p_round: round.id, p_bet: bet, p_amount: amount });
     if (error) { msg.textContent = error.message; msg.className = "casino-msg lose"; return; }
-    setCash(data.cash);
+    setCash(data.cash); sound.chip();
     msg.textContent = `$${amount} on ${prettyBet(bet)}. Pile 'em on!`; msg.className = "casino-msg";
   }
 
@@ -238,6 +239,7 @@ export function mount(container, ctx) {
     const dur = 7000, t0 = performance.now();
     const ballTurns = Math.PI * 2 * 18;
     cancelAnimationFrame(raf);
+    sound.startWheel(dur);
     msg.textContent = "No more bets — spinning…"; msg.className = "casino-msg";
     (function frame(now) {
       const p = Math.min((now - t0) / dur, 1);
@@ -250,9 +252,12 @@ export function mount(container, ctx) {
   }
 
   async function afterSpin(result) {
+    sound.stopWheel();
     await loadBets(); await refreshCash();
-    const mine = bets.find((b) => b.user_id === uid);
-    if (mine) { msg.textContent = mine.won ? `${colorOf(result)} ${result} — you win $${mine.payout}! 🎉` : `${colorOf(result)} ${result} — no luck.`; msg.className = "casino-msg " + (mine.won ? "win" : "lose"); }
+    const mine = bets.filter((b) => b.user_id === uid);
+    if (mine.length) { const w = mine.some((b) => b.won); w ? sound.win() : sound.lose(); }
+    const myWin = mine.filter((b) => b.won);
+    if (mine.length) { msg.textContent = myWin.length ? `${colorOf(result)} ${result} — you win $${myWin.reduce((s, b) => s + b.payout, 0)}! 🎉` : `${colorOf(result)} ${result} — no luck.`; msg.className = "casino-msg " + (myWin.length ? "win" : "lose"); }
     else { msg.textContent = `${colorOf(result)} ${result}.`; msg.className = "casino-msg"; }
     if (!nextScheduled) nextScheduled = setTimeout(async () => { const { data } = await supabase.rpc("roulette_current"); if (data) onRound(data); }, 5000);
   }

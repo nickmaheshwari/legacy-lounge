@@ -3,6 +3,7 @@
 // Server-authoritative (bj_round_* RPCs); the client bets / hits / stands.
 import { supabase } from "../../supabase.js";
 import { drawAnimal } from "../../world.js";
+import * as sound from "../../sound.js";
 
 export const meta = { id: "blackjack", title: "Blackjack", maxPlayers: 6 };
 
@@ -24,7 +25,7 @@ export function mount(container, ctx) {
   const uid = ctx.user.id;
   const myAvatar = ctx.avatar || "dog";
   let bet = 10, round = null, hands = [];
-  let sub = null, ticker = null, dealSent = null, settleSent = null, nextScheduled = null;
+  let sub = null, ticker = null, dealSent = null, settleSent = null, nextScheduled = null, chimed = null;
   const shown = {}; // animation: key -> cards already shown
 
   const wrap = div("casino-wrap bj-felt");
@@ -161,7 +162,10 @@ export function mount(container, ctx) {
       msg.className = "casino-msg";
     }
     else if (done) {
-      if (mine && mine.result) { const r2 = mine.result; msg.textContent = `${({ blackjack: "Blackjack!", win: "You win!", push: "Push.", lose: "You lose." })[r2]} Dealer: ${dtot}`; msg.className = "casino-msg " + (r2 === "lose" ? "lose" : r2 === "push" ? "" : "win"); }
+      if (mine && mine.result) {
+        const r2 = mine.result; msg.textContent = `${({ blackjack: "Blackjack!", win: "You win!", push: "Push.", lose: "You lose." })[r2]} Dealer: ${dtot}`; msg.className = "casino-msg " + (r2 === "lose" ? "lose" : r2 === "push" ? "" : "win");
+        if (chimed !== round.id) { chimed = round.id; r2 === "lose" ? sound.lose() : r2 === "push" ? null : sound.win(); }
+      }
       else { msg.textContent = `Dealer: ${dtot ?? "-"}`; msg.className = "casino-msg"; }
       say("Next round shortly…");
     }
@@ -170,14 +174,14 @@ export function mount(container, ctx) {
   // append cards, animating only newly added ones per source key
   function appendCards(box, cards, key) {
     const prev = shown[key] || 0;
-    cards.forEach((c, i) => { if (c == null) return; const el = cardEl(c); if (i >= prev) { el.classList.add("dealing"); el.style.animationDelay = Math.max(0, i - prev) * 120 + "ms"; } box.append(el); });
+    cards.forEach((c, i) => { if (c == null) return; const el = cardEl(c); if (i >= prev) { el.classList.add("dealing"); const d = Math.max(0, i - prev) * 120; el.style.animationDelay = d + "ms"; setTimeout(() => sound.cardFlip(), d + 60); } box.append(el); });
     shown[key] = cards.filter((c) => c != null).length;
   }
 
   async function onJoin() {
     const { data, error } = await supabase.rpc("bj_round_bet", { p_round: round.id, p_amount: bet, p_avatar: myAvatar });
     if (error) { msg.textContent = error.message; msg.className = "casino-msg lose"; return; }
-    setCash(data.cash); await loadHands();
+    setCash(data.cash); sound.chip(); await loadHands();
   }
   function onHit() { if (round) supabase.rpc("bj_round_hit", { p_round: round.id }).then(loadHands); }
   function onStand() { if (round) supabase.rpc("bj_round_stand", { p_round: round.id }).then(loadHands); }

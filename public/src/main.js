@@ -7,6 +7,7 @@ import { startWorld } from "./world.js";
 import { buildRooms } from "./rooms.js";
 import { initChat } from "./chat.js";
 import { loadMinigame } from "./minigames/registry.js";
+import * as sound from "./sound.js";
 
 const authScreen = document.getElementById("auth-screen");
 const gameScreen = document.getElementById("game-screen");
@@ -184,6 +185,11 @@ document.getElementById("logout").addEventListener("click", async () => {
   await logOut();
   show("auth");
 });
+
+const soundBtn = document.getElementById("sound-btn");
+function refreshSound() { soundBtn.textContent = sound.isMuted() ? "🔇" : "🔊"; }
+soundBtn.addEventListener("click", () => { sound.setMuted(!sound.isMuted()); refreshSound(); });
+refreshSound();
 
 // ---------- profile modal (change username + avatar) ----------
 const profileModal = document.getElementById("profile-modal");

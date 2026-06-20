@@ -5,6 +5,7 @@
 // Conforms to the mini-game contract: meta, mount(container, ctx), unmount().
 import { Chess } from "https://esm.sh/chess.js@1.0.0";
 import { supabase } from "../../supabase.js";
+import { chessMove } from "../../sound.js";
 
 export const meta = { id: "chess", title: "Chess", maxPlayers: 2 };
 
@@ -48,6 +49,7 @@ export function mount(container, ctx) {
   let legalTargets = [];  // squares the selected piece can move to
   let gameSub = null;
   let vsCpu = false;      // single-player vs a client-side bot (you hold both seats)
+  let prevFen = null;     // for move sound
 
   // ----- DOM -----
   const wrap = document.createElement("div");
@@ -150,6 +152,8 @@ export function mount(container, ctx) {
   function applyGame() {
     if (!game) return;
     vsCpu = game.black_name === CPU_NAME && game.white_id === userId;
+    if (prevFen && prevFen !== game.fen) chessMove();
+    prevFen = game.fen;
     chess.load(game.fen);
     selected = null;
     legalTargets = [];

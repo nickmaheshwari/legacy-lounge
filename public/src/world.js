@@ -2,6 +2,7 @@
 // click), presence, avatars, and exits/hotspots. The actual scene art and the
 // list of exits/hotspots come from a `room` descriptor (see rooms.js).
 import { joinRoom } from "./realtime.js";
+import { startFire, stopFire } from "./sound.js";
 
 export const WORLD_W = 1280;
 export const WORLD_H = 720;
@@ -32,6 +33,8 @@ export function startWorld({ canvas, userId, username, avatar = "dog", room, onE
   resize();
   const ro = new ResizeObserver(resize);
   ro.observe(canvas);
+
+  if (room.id === "lounge") startFire();
 
   const me = {
     id: userId, username, avatar,
@@ -248,6 +251,7 @@ export function startWorld({ canvas, userId, username, avatar = "dog", room, onE
     stop() {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      stopFire();
       canvas.removeEventListener("click", onClick);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
